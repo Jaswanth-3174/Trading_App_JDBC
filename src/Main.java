@@ -1,5 +1,6 @@
 import DAO.DematAccountDAO;
 import DAO.StockDAO;
+import DAO.TradingAccountDAO;
 import DbConnection.DatabaseConfig;
 import trading.*;
 import util.*;
@@ -93,8 +94,11 @@ public class Main {
 
 //        dematAccount = d.findByPanNumber("KJKWk1L");
 //        System.out.println(dematAccount.getDemandAccountId() + " " + dematAccount.getPanNumber());
+        TradingAccountDAO t = new TradingAccountDAO();
 
-        System.out.println();
+//        TradingAccount tradingAccount = t.findByUserId(1);
+//        System.out.println(tradingAccount.getTradingAccountId() + " " + tradingAccount.getUserId() + " " + tradingAccount.getBalance());
+//        System.out.println();
 
 //        while (true) {
 //            mainMenu();

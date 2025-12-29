@@ -16,6 +16,10 @@ public class TradingAccount {
     private ArrayList<Transaction> transactions;
     private boolean isActive;
 
+
+    public TradingAccount(){
+    }
+
     public TradingAccount(int userId){
         this.tradingAccountId = idCounter++;
         this.userId = userId;
@@ -42,16 +46,32 @@ public class TradingAccount {
         return this.tradingAccountId;
     }
 
+    public void setTradingAccountId(int id){
+        this.tradingAccountId = id;
+    }
+
     public int getUserId() {
         return this.userId;
+    }
+
+    public void setUserId(int id){
+        this.userId = id;
     }
 
     public double getBalance() {
         return this.balance;
     }
 
+    public void setBalance(double balance){
+        this.balance = balance;
+    }
+
     public double getReservedBalance() {
         return this.reservedBalance;
+    }
+
+    public void setReservedBalance(double balance){
+        this.reservedBalance = balance;
     }
 
     public double getCurrentBalance() {
