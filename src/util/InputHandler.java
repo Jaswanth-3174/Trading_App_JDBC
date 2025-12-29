@@ -71,4 +71,70 @@ public class InputHandler {
         return false;
     }
 
+    // Get menu choice without printing prompt (prompt already printed by menu)
+    public int getMenuChoice() {
+        while (true) {
+            try {
+                String input = scanner.nextLine().trim();
+                if (input.isEmpty()) {
+                    System.out.print("Enter choice: ");
+                    continue;
+                }
+                int choice = Integer.parseInt(input);
+                if (choice < 0) {
+                    System.out.println("Choice cannot be negative!");
+                    System.out.print("Enter choice: ");
+                    continue;
+                }
+                return choice;
+            } catch (NumberFormatException e) {
+                System.out.println("Invalid input! Please enter a number.");
+                System.out.print("Enter choice: ");
+            }
+        }
+    }
+
+    // Get positive integer with custom error message
+    public int getPositiveInteger(String prompt) {
+        while (true) {
+            System.out.print(prompt);
+            try {
+                String input = scanner.nextLine().trim();
+                if (input.isEmpty()) {
+                    System.out.println("Input cannot be empty!");
+                    continue;
+                }
+                int num = Integer.parseInt(input);
+                if (num <= 0) {
+                    System.out.println("Value must be positive!");
+                    continue;
+                }
+                return num;
+            } catch (NumberFormatException e) {
+                System.out.println("Invalid input! Please enter a valid integer.");
+            }
+        }
+    }
+
+    // Get positive double with custom error message
+    public double getPositiveDouble(String prompt) {
+        while (true) {
+            System.out.print(prompt);
+            try {
+                String input = scanner.nextLine().trim();
+                if (input.isEmpty()) {
+                    System.out.println("Input cannot be empty!");
+                    continue;
+                }
+                double num = Double.parseDouble(input);
+                if (num <= 0) {
+                    System.out.println("Value must be positive!");
+                    continue;
+                }
+                return num;
+            } catch (NumberFormatException e) {
+                System.out.println("Invalid input! Please enter a valid number.");
+            }
+        }
+    }
 }

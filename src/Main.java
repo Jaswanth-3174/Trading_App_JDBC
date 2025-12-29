@@ -1,3 +1,6 @@
+import DAO.DematAccountDAO;
+import DAO.StockDAO;
+import DbConnection.DatabaseConfig;
 import trading.*;
 import util.*;
 import account.*;
@@ -5,6 +8,7 @@ import market.*;
 
 import java.util.HashMap;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Scanner;
 public class Main {
 
@@ -73,24 +77,42 @@ public class Main {
 
     public static void main(String[] args) {
         System.out.println("---------- WELCOME TO TRADING ----------");
-        while (true) {
-            mainMenu();
-            int choice = sc.nextInt();
-            sc.nextLine();
-            switch (choice) {
-                case 1:
-                    register();
-                    break;
-                case 2:
-                    login();
-                    break;
-                case 3:
-                    System.out.println("Exited!");
-                    return;
-                default:
-                    System.out.println("Invalid choice.");
-            }
-        }
+//        DatabaseConfig db = new DatabaseConfig();
+//        db.getConnection();
+//        db.closeConnection();
+        StockDAO s = new StockDAO();
+        List<String> list = s.getStocks();
+        System.out.println(list);
+
+        DematAccountDAO d = new DematAccountDAO();
+
+//        DematAccount dematAccount = d.findByPanNumber("RAMS12R");
+//        System.out.println(dematAccount.getDemandAccountId() + " " + dematAccount.getPanNumber());
+
+//          System.out.println(d.authenticate("KJKWk1L", "Jaswanth.1"));
+
+//        dematAccount = d.findByPanNumber("KJKWk1L");
+//        System.out.println(dematAccount.getDemandAccountId() + " " + dematAccount.getPanNumber());
+
+        System.out.println();
+
+//        while (true) {
+//            mainMenu();
+//            int choice = inputHandler.getMenuChoice();
+//            switch (choice) {
+//                case 1:
+//                    register();
+//                    break;
+//                case 2:
+//                    login();
+//                    break;
+//                case 3:
+//                    System.out.println("Exited!");
+//                    return;
+//                default:
+//                    System.out.println("Invalid choice.");
+//            }
+//        }
     }
 
     static void mainMenu(){
@@ -180,7 +202,7 @@ public class Main {
     }
 
     static void login() {
-        int id = inputHandler.getInteger("Enter trading.User ID: ");
+        int id = inputHandler.getInteger("Enter User ID: ");
 
         User user = users.get(id);
         if (user == null) {
@@ -204,8 +226,7 @@ public class Main {
     static void userMenu(User user) {
         while (true) {
             printUserMenu(user);
-            int choice = sc.nextInt();
-            sc.nextLine();
+            int choice = inputHandler.getMenuChoice();
 
             switch (choice) {
                 case 1:
@@ -267,19 +288,15 @@ public class Main {
 
     static void placeBuyOrder(User user) {
         System.out.println("\nAvailable stocks: " + stockSymbols);
-        System.out.print("Enter stock name: ");
-        String stock = sc.nextLine().toUpperCase();
+        String stock = inputHandler.getString("Enter stock name: ").toUpperCase();
 
         if (!stockSymbols.contains(stock)) {
             System.out.println("Invalid stock.");
             return;
         }
 
-        System.out.print("Enter quantity: ");
-        int qty = sc.nextInt();
-        System.out.print("Enter price: ");
-        double price = sc.nextDouble();
-        sc.nextLine();
+        int qty = inputHandler.getPositiveInteger("Enter quantity: ");
+        double price = inputHandler.getPositiveDouble("Enter price: ");
 
         double total = qty * price;
         TradingAccount trade = user.getTradingAccount();
@@ -293,9 +310,9 @@ public class Main {
         marketPlace.addBuyOrder(order);
 
         if (order.getStatus().equals("FILLED")) {
-            System.out.println("\ntrading.Order #" + order.getOrderId() + " completely filled!");
+            System.out.println("\nOrder #" + order.getOrderId() + " completely filled!");
         } else if (order.getStatus().equals("PARTIAL")) {
-            System.out.println("\ntrading.Order #" + order.getOrderId() + " partially filled. Remaining: " + order.getQuantity() + " shares waiting.");
+            System.out.println("\nOrder #" + order.getOrderId() + " partially filled. Remaining: " + order.getQuantity() + " shares waiting.");
         } else {
             System.out.println("\nBUY order #" + order.getOrderId() + " placed. Waiting for matching sell order.");
         }
@@ -309,14 +326,10 @@ public class Main {
         }
 
         demat.getHoldings();
-        System.out.print("Enter stock name: ");
-        String stock = sc.nextLine().toUpperCase();
+        String stock = inputHandler.getString("Enter stock name: ").toUpperCase();
 
-        System.out.print("Enter quantity: ");
-        int qty = sc.nextInt();
-        System.out.print("Enter price (per 1 stock): ");
-        double price = sc.nextDouble();
-        sc.nextLine();
+        int qty = inputHandler.getPositiveInteger("Enter quantity: ");
+        double price = inputHandler.getPositiveDouble("Enter price (per 1 stock): ");
 
         if (!demat.reserveStocks(stock, qty)) {
             System.out.println("Cannot reserve stocks.");
@@ -327,9 +340,9 @@ public class Main {
         marketPlace.addSellOrder(order);
 
         if (order.getStatus().equals("FILLED")) {
-            System.out.println("\ntrading.Order #" + order.getOrderId() + " completely filled!");
+            System.out.println("\nOrder #" + order.getOrderId() + " completely filled!");
         } else if (order.getStatus().equals("PARTIAL")) {
-            System.out.println("\ntrading.Order #" + order.getOrderId() + " partially filled. Remaining: " + order.getQuantity() + " shares waiting.");
+            System.out.println("\nOrder #" + order.getOrderId() + " partially filled. Remaining: " + order.getQuantity() + " shares waiting.");
         } else {
             System.out.println("\nSELL order #" + order.getOrderId() + " placed. Waiting for matching buy order.");
         }
@@ -341,7 +354,7 @@ public class Main {
 
         System.out.println("+----------+--------+----------+----------+----------+----------+------------+--------------+------------+");
         System.out.printf("| %-8s | %-6s | %-8s | %-8s | %-8s | %-8s | %-10s | %-12s | %-10s |%n",
-                "trading.Order ID", "Type", "Stock", "Original", "Filled", "Remaining", "Price", "Total", "Status");
+                "Order ID", "Type", "Stock", "Original", "Filled", "Remaining", "Price", "Total", "Status");
         System.out.println("+----------+--------+----------+----------+----------+----------+------------+--------------+------------+");
         
         for (Order order : ordersById.values()) {
@@ -377,11 +390,11 @@ public class Main {
             return;
         }
         
-        int orderId = inputHandler.getInteger("Enter trading.Order ID to modify: ");
+        int orderId = inputHandler.getInteger("Enter Order ID to modify: ");
         
         Order order = marketPlace.getOrderById(orderId);
         if (order == null) {
-            System.out.println("trading.Order #" + orderId + " not found.");
+            System.out.println("Order #" + orderId + " not found.");
             return;
         }
         
@@ -392,9 +405,9 @@ public class Main {
         }
         
         // current order details
-        System.out.println("\n--- Current trading.Order Details ---");
+        System.out.println("\n--- Current Order Details ---");
         String type = order.isBuy() ? "BUY" : "SELL";
-        System.out.println("trading.Order ID    : " + order.getOrderId());
+        System.out.println("Order ID    : " + order.getOrderId());
         System.out.println("Type        : " + type);
         System.out.println("Stock       : " + order.getStockName());
         System.out.println("Original Qty: " + order.getOriginalQuantity());
@@ -432,10 +445,10 @@ public class Main {
 //
 //        System.out.println("+----------+--------+----------+----------+----------+----------+------------+--------------+------------+");
 //        System.out.printf("| %-8s | %-6s | %-8s | %-8s | %-8s | %-8s | %-10s | %-12s | %-10s |%n",
-//                "trading.Order ID", "Type", "Stock", "Original", "Filled", "Remaining", "Price", "Total", "Status");
+//                "Order ID", "Type", "Stock", "Original", "Filled", "Remaining", "Price", "Total", "Status");
 //        System.out.println("+----------+--------+----------+----------+----------+----------+------------+--------------+------------+");
 //
-//        for (trading.Order order : ordersById.values()) {
+//        for (Order order : ordersById.values()) {
 //            if (order.getStatus().equals("OPEN") || order.getStatus().equals("PARTIAL")) {
 //                order.printRow();
 //                found = true;

@@ -1,24 +1,32 @@
 package DbConnection;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.Statement;
+import java.sql.*;
 
-public class DbConnection{
-    static void main(){
-        String url = "jdbc:mysql://localhost:3306/trading_app";
-        String username = "jaswanth";
-        String password = "root";
-        String query = "select * from users";
-        try{
-            Connection con = DriverManager.getConnection(url, username, password);
-            Statement st = con.createStatement();
-            ResultSet rs = st.executeQuery(query);
-            rs.next();
-            System.out.println(rs.getString(2) + "");
-        }catch (Exception e){
-            e.printStackTrace();
+public class DatabaseConfig {
+        static String url = "jdbc:mysql://localhost:3306/trading_app";
+        static String username = "jaswanth";
+        static String password = "root";
+        static String query = "select * from users";
+        static Connection con = null;
+
+        public static Connection getConnection(){
+            try{
+                con = DriverManager.getConnection(url, username, password);
+                System.out.println("Connection established ... \n");
+            }catch (Exception e){
+                e.printStackTrace();
+            }
+            return con;
         }
-    }
+
+        public static void closeConnection(){
+            try{
+                if(con != null){
+                    con.close();
+                    System.out.println("Connection closed ... \n");
+                }
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
 }

@@ -2,7 +2,7 @@ package util;
 
 public class Validator {
 
-    public boolean validateUserName(String userName){
+    public static boolean validateUserName(String userName){
         if(userName.length()<3){
             System.out.println("User name minimum of length 3 required");
             return false;
@@ -17,7 +17,7 @@ public class Validator {
         return true;
     }
 
-    public boolean validatePassword(String password){
+    public static boolean validatePassword(String password){
         if(password.length() < 8 || password.length() > 15){
             System.out.println("Password should be of length 8 to 15");
             return false;
@@ -48,27 +48,27 @@ public class Validator {
         return true;
     }
 
-//    boolean validatePanNumber(String panNumber){
-//        if(panNumber.length() != 7){
-//            System.out.println("Invalid PAN Number");
-//            return false;
-//        }
-//        for(int i=0; i<7; i++){
-//            char c = panNumber.charAt(i);
-//            if(i==4 || i==5){
-//                if(c >= '0' && c <= '9'){
-//                }else{
-//                    System.out.println("Invalid PAN Number");
-//                    return false;
-//                }
-//            }else{
-//                if(c >= 'A' && c <= 'Z'){
-//                }else{
-//                    System.out.println("Invalid PAN Number");
-//                    return false;
-//                }
-//            }
-//        }
-//        return true;
-//    }
+    public static boolean validatePanNumber(String panNumber){
+        if(panNumber.length() != 7){
+            System.out.println("Invalid PAN Number");
+            return false;
+        }
+        for(int i=0; i<7; i++){
+            char c = panNumber.charAt(i);
+            if(i==4 || i==5){
+                if(c >= '0' && c <= '9'){
+                }else{
+                    System.out.println("Invalid PAN Number");
+                    return false;
+                }
+            }else{
+                if(c >= 'A' && c <= 'Z'){
+                }else{
+                    System.out.println("Invalid PAN Number");
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
 }

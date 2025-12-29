@@ -10,6 +10,10 @@ public class DematAccount {
     private String password;
     private StockPortfolio portfolio;
 
+    public DematAccount(){
+
+    }
+
     public DematAccount(String panNumber, String password){
         this.demandAccountId = idCounter++;
         this.panNumber = panNumber;
@@ -23,6 +27,18 @@ public class DematAccount {
 
     public int getDemandAccountId(){
         return this.demandAccountId;
+    }
+
+    public void setDemandAccountId(int id){
+        this.demandAccountId = id;
+    }
+
+    public void setPanNumber(String panNumber){
+        this.panNumber = panNumber;
+    }
+
+    public void setPassword(String password){
+        this.password = password;
     }
 
     public String getPanNumber(){
