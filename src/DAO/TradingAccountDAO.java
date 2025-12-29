@@ -2,7 +2,6 @@ package DAO;
 
 import DbConnection.DatabaseConfig;
 import account.TradingAccount;
-
 import java.sql.*;
 
 public class TradingAccountDAO {

@@ -11,9 +11,12 @@ public class User {
     private String password;
     private String panNumber;
     private TradingAccount tradingAccount;
-    private DematAccount dematAccount;
+    // private DematAccount dematAccount;
+    private int dematId;
     private boolean isPromoter;
-    private boolean isDeleted;
+    private boolean isActive;
+
+    public User(){}
 
     public User(String userName, String password, String panNumber, boolean isPromoter) {
         this.userId = idCounter++;
@@ -21,9 +24,8 @@ public class User {
         this.password = password;
         this.panNumber = panNumber;
         this.tradingAccount = null;
-        this.dematAccount = null;
         this.isPromoter = isPromoter;
-        this.isDeleted = false;
+        this.isActive = true;
     }
 
     public static int getIdCounter() {
@@ -39,16 +41,40 @@ public class User {
         return this.userId;
     }
 
+    public void setUserId(int id){
+        this.userId = id;
+    }
+
+    public int getDematId(){
+        return this.dematId;
+    }
+
+    public void setDematId(int id){
+        this.dematId = id;
+    }
+
     public String getUserName() {
         return this.userName;
     }
 
-    public DematAccount getDematAccount() {
-        return this.dematAccount;
+    public void setUserName(String name){
+        this.userName = name;
     }
 
-    public void setDematAccount(DematAccount dematAccount) {
-        this.dematAccount = dematAccount;
+    public void setPassword(String password){
+        this.password = password;
+    }
+
+    public void setPanNumber(String panNumber){
+        this.panNumber = panNumber;
+    }
+
+    public void setPromoter(boolean b){
+        this.isPromoter = b;
+    }
+
+    public void setActive(boolean active) {
+        this.isActive = active;
     }
 
     public String getPanNumber() {
@@ -67,12 +93,7 @@ public class User {
         return this.isPromoter;
     }
 
-    public boolean isDeleted() {
-        return this.isDeleted;
+    public boolean isActive() {
+        return this.isActive;
     }
-
-    public void setDeleted(boolean deleted) {
-        this.isDeleted = deleted;
-    }
-
 }

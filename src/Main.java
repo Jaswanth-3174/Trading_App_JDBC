@@ -1,7 +1,6 @@
 import DAO.DematAccountDAO;
 import DAO.StockDAO;
 import DAO.TradingAccountDAO;
-import DbConnection.DatabaseConfig;
 import trading.*;
 import util.*;
 import account.*;
@@ -223,7 +222,7 @@ public class Main {
             System.out.println("User not found.");
             return;
         }
-        if (user.isDeleted()) {
+        if (user.isActive()) {
             System.out.println("User ID has been deleted.");
             return;
         }
@@ -561,7 +560,7 @@ public class Main {
 
     static boolean isPanLinkedToActiveUser(String pan) {
         for (User u : users.values()) {
-            if (u.getPanNumber().equals(pan) && !u.isDeleted()) {
+            if (u.getPanNumber().equals(pan) && !u.isActive()) {
                 return true;
             }
         }
@@ -593,7 +592,7 @@ public class Main {
             tradings.remove(tradeToRemove.getTradingAccountId());
         }
 
-        user.setDeleted(true);
+        user.setActive(true);
 
         System.out.println("\nAccount deleted successfully!");
         return true;
