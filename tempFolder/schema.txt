@@ -1,0 +1,25 @@
+src/
+├── Main.java
+├── config/
+│   └── DatabaseConfig.java
+├── model/
+│   ├── Stock.java
+│   ├── User.java
+│   ├── DematAccount.java
+│   ├── TradingAccount.java
+│   ├── StockHolding.java
+│   ├── Order.java
+│   └── Transaction.java
+├── dao/
+│   ├── StockDAO.java
+│   ├── UserDAO.java
+│   ├── DematAccountDAO.java
+│   ├── TradingAccountDAO.java
+│   ├── StockHoldingDAO.java
+│   ├── OrderDAO.java
+│   └── TransactionDAO.java
+├── service/
+│   └── MarketPlace.java
+└── util/
+    ├── InputHandler.java
+    └── Validator.java
