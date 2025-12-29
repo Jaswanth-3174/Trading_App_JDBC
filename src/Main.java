@@ -7,6 +7,7 @@ import util.*;
 import account.*;
 import market.*;
 
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.List;
@@ -76,7 +77,7 @@ public class Main {
         }
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws SQLException {
         System.out.println("---------- WELCOME TO TRADING ----------");
 //        DatabaseConfig db = new DatabaseConfig();
 //        db.getConnection();
@@ -95,6 +96,15 @@ public class Main {
 //        dematAccount = d.findByPanNumber("KJKWk1L");
 //        System.out.println(dematAccount.getDemandAccountId() + " " + dematAccount.getPanNumber());
         TradingAccountDAO t = new TradingAccountDAO();
+//        TradingAccount tradingAccount =  t.createTradingAccount(2);
+//        System.out.println(tradingAccount.getTradingAccountId() + " " + tradingAccount.getUserId() + " " + tradingAccount.getBalance() + " " + tradingAccount.getReservedBalance());
+        TradingAccount tradingAccount = t.findByUserId(1);
+        System.out.println(tradingAccount.getBalance());
+       // t.reserveBalance(1, 30000);
+//        t.credit(1, 10000);
+//        System.out.println(tradingAccount.getBalance());
+//        t.debit(1, 10000);
+        System.out.println(tradingAccount.getCurrentBalance());
 
 //        TradingAccount tradingAccount = t.findByUserId(1);
 //        System.out.println(tradingAccount.getTradingAccountId() + " " + tradingAccount.getUserId() + " " + tradingAccount.getBalance());
