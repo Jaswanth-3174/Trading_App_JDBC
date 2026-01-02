@@ -20,7 +20,7 @@ public class Main {
             marketPlace = new MarketPlace();
 
             System.out.println("\n+-----------------------------------------------------------+");
-            System.out.println("+       WELCOME TO TRADING CONSOLE APPLICATION             +");
+            System.out.println("+         WELCOME TO TRADING CONSOLE APPLICATION            +");
             System.out.println("+-----------------------------------------------------------+");
 
             // Main loop

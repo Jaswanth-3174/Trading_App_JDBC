@@ -44,27 +44,21 @@ public class DatabaseConfig {
         try {
             if (con != null && !con.isClosed()) {
                 con.close();
-                System.out.println("✓ Database connection closed");
+                System.out.println("Database connection closed");
             }
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
 
-    /**
-     * Reset database to initial state for testing
-     */
+
     public static void resetDatabase() throws SQLException {
         Connection conn = getConnection();
         Statement stmt = conn.createStatement();
-
         try {
             conn.setAutoCommit(false);
-
-            // Disable FK checks
             stmt.execute("SET FOREIGN_KEY_CHECKS = 0");
 
-            // Clear data
             stmt.execute("TRUNCATE TABLE transactions");
             stmt.execute("TRUNCATE TABLE orders");
             stmt.execute("TRUNCATE TABLE stock_holdings");
@@ -73,29 +67,18 @@ public class DatabaseConfig {
             stmt.execute("TRUNCATE TABLE demat_accounts");
             stmt.execute("TRUNCATE TABLE stocks");
 
-            // Enable FK checks
             stmt.execute("SET FOREIGN_KEY_CHECKS = 1");
 
-            // Insert initial stocks
             stmt.execute("INSERT INTO stocks (stock_name) VALUES ('TCS'), ('SBI'), ('INFY'), ('NIFTY')");
 
-            // Insert promoter demat
-            stmt.execute("INSERT INTO demat_accounts (pan_number, password) VALUES ('RAMS12R', 'Ab.11111')");
-
-            // Insert promoter user
-            stmt.execute("INSERT INTO users (username, password, demat_id, is_promoter) VALUES ('Ram', 'Ab.11111', 1, TRUE)");
-
-            // Insert promoter trading account
-            stmt.execute("INSERT INTO trading_accounts (user_id, balance, reserved_balance) VALUES (1, 8000.00, 0.00)");
-
-            // Insert promoter stock holdings
-            stmt.execute("INSERT INTO stock_holdings (demat_id, stock_id, total_quantity, reserved_quantity) VALUES (1, 1, 1000, 300)");
-
-            // Insert initial sell order
-            stmt.execute("INSERT INTO orders (user_id, stock_id, original_quantity, quantity, price, is_buy, status) VALUES (1, 1, 300, 300, 1500.00, FALSE, 'OPEN')");
-
+            // promoter 1
+            stmt.execute("insert into demat_accounts (pan_number, password) values('RAMS12R', 'Ab.11111')");
+            stmt.execute("insert into users(username, password, demat_id, isPromoter) values('Ram', 'Ab.1111', 1, true);");
+            stmt.execute("insert into trading_accounts(user_id, balance, reserved_balance) values (1, 8000.00, 0.00)");
+            stmt.execute("insert into stock_holdings (demat_id, stock_id, total_quantity, reserved_quantity) values(1, 1, 1000, 300)");
+            stmt.execute("insert into orders (user_id, stock_id, quantity, price, is_buy) values (1, 1, 300, 1500.00, false)");
             conn.commit();
-            System.out.println("✓ Database reset to initial state!");
+            System.out.println("Database reset to initial state!");
 
         } catch (SQLException e) {
             conn.rollback();
