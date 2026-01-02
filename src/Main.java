@@ -243,6 +243,7 @@ public class Main {
         for (String stock : stocks) {
             System.out.printf("+   • %-33s +%n", stock);
         }
+
         System.out.println("+---------------------------------------+");
     }
 
