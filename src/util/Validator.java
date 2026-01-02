@@ -1,6 +1,8 @@
+package util;
+
 public class Validator {
 
-    boolean validateUserName(String userName){
+    public static boolean validateUserName(String userName){
         if(userName.length()<3){
             System.out.println("User name minimum of length 3 required");
             return false;
@@ -15,12 +17,12 @@ public class Validator {
         return true;
     }
 
-    boolean validatePassword(String password){
+    public static boolean validatePassword(String password){
         if(password.length() < 8 || password.length() > 15){
             System.out.println("Password should be of length 8 to 15");
             return false;
         }
-        int upperCaseCount = 0, lowerCaseCount = 0, digitCount= 0, specialCharacterCount = 0;
+        int upperCaseCount = 0, lowerCaseCount = 0, digitCount = 0, specialCharacterCount = 0;
         for(char c : password.toCharArray()){
             if(c >= 'a' && c <= 'z') lowerCaseCount++;
             else if(c>='A' && c<='Z') upperCaseCount++;
@@ -46,7 +48,7 @@ public class Validator {
         return true;
     }
 
-    boolean validatePanNumber(String panNumber){
+    public static boolean validatePanNumber(String panNumber){
         if(panNumber.length() != 7){
             System.out.println("Invalid PAN Number");
             return false;

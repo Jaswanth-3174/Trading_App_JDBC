@@ -1,365 +1,253 @@
-import java.util.HashMap;
-import java.util.ArrayList;
-import java.util.Scanner;
+import dbConnection.*;
+import dao.*;
+import trading.*;
+import market.*;
+import util.*;
+import account.*;
+
+import java.sql.SQLException;
+import java.util.List;
+
 public class Main {
 
-    static Validator validator;
-    static HashMap<Integer, User> users;
-    static HashMap<Integer, DematAccount> demats;
-    static HashMap<Integer, TradingAccount> tradings;
-
-    static ArrayList<Order> buyOrders, sellOrders;
-    static HashMap<Integer, Order> ordersById;
-
-    static ArrayList<Transaction> transactions;
-
-    static int userId = 1, dematAccountId = 1, tradingAccountId = 1, transactionId = 1, orderId = 1;
-
-    static ArrayList<String> stockSymbols;
-
-    static MarketPlace marketPlace;
-
-    static Scanner sc;
-    static InputHandler inputHandler;
-
-    static User promoter1, promoter2, promoter3;
-
-    static {
-        validator = new Validator();
-        users = new HashMap<>();
-        demats = new HashMap<>();
-        tradings = new HashMap<>();
-        buyOrders = new ArrayList<>();
-        sellOrders = new ArrayList<>();
-        ordersById = new HashMap<>();
-        transactions = new ArrayList<>();
-        sc = new Scanner(System.in);
-        inputHandler = new InputHandler(sc);
-
-        stockSymbols = new ArrayList<>();
-        stockSymbols.add("TCS");
-        stockSymbols.add("NIFTY");
-        stockSymbols.add("SBI");
-        stockSymbols.add("INFY");
-
-        marketPlace = new MarketPlace();
-        marketPlace.setReferences(tradings, demats, users, transactions, transactionId);
-
-        // Promoter 1
-        promoter1 = new User(userId++, "Ram", "Ab.11111", "AWSD12J", true);
-        DematAccount dematAccount1 = getOrCreateDematByPAN(promoter1.getPanNumber());
-        promoter1.setDematAccountId(dematAccount1.getDemandAccountId());
-        users.put(promoter1.getUserId(), promoter1);
-        TradingAccount tradingAccount1 = new TradingAccount(tradingAccountId++, promoter1.getUserId());
-        tradings.put(tradingAccount1.getTradingAccountId(), tradingAccount1);
-        promoter1.setTradingAccountId(tradingAccount1.getTradingAccountId());
-        dematAccount1.addShares("TCS", 1000);
-        dematAccount1.addShares("NIFTY", 1500);
-        dematAccount1.addShares("SBI", 2000);
-        dematAccount1.addShares("INFY", 1200);
-
-        // Promoter1 places SELL
-        DematAccount p1Demat = demats.get(promoter1.getDematID());
-        int p1SellQty = 300;
-        double p1SellPrice = 1500.5;
-        if (p1Demat.reserveStocks("TCS", p1SellQty)) {
-            Order p1SellOrder = new Order(orderId++, promoter1.getUserId(), promoter1.getTradingAccountId(), "TCS", p1SellQty, p1SellPrice, false);
-            marketPlace.addSellOrder(p1SellOrder);
-            ordersById.put(p1SellOrder.getOrderId(), p1SellOrder);
-            tradings.get(p1SellOrder.getTradingAccountId()).addOrder(p1SellOrder.getOrderId());
-            System.out.println("Promoter1 SELL placed: " + p1SellOrder.getOrderId());
-        }
-    }
+    private static MarketPlace marketPlace;
+    private static User currentUser = null;
 
     public static void main(String[] args) {
-        System.out.println("---------- WELCOME TO TRADING ----------");
-        while (true) {
-            mainMenu();
-            int choice = sc.nextInt();
-            sc.nextLine();
-            switch (choice) {
-                case 1:
-                    register();
-                    break;
-                case 2:
-                    login();
-                    break;
-                case 3:
-                    System.out.println("Exited!");
-                    return;
-                default:
-                    System.out.println("Invalid choice.");
+        try {
+            // Initialize
+            DatabaseConfig.getConnection();
+            marketPlace = new MarketPlace();
+
+            System.out.println("\n+-----------------------------------------------------------+");
+            System.out.println("+       WELCOME TO TRADING CONSOLE APPLICATION             +");
+            System.out.println("+-----------------------------------------------------------+");
+
+            // Main loop
+            while (true) {
+                if (currentUser == null) {
+                    showLoginMenu();
+                } else {
+                    showMainMenu();
+                }
+            }
+
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        } finally {
+            DatabaseConfig.closeConnection();
+        }
+    }
+
+
+    private static void showLoginMenu() throws SQLException {
+        System.out.println("\n+---------------------------------------+");
+        System.out.println("+            LOGIN MENU                 +");
+        System.out.println("+---------------------------------------+");
+        System.out.println("+  1. Login                             +");
+        System.out.println("+  2. Register New User                 +");
+        System.out.println("+  3. Reset Database                    +");
+        System.out.println("+  0. Exit                              +");
+        System.out.println("+---------------------------------------+");
+
+        int choice = InputHandler.getInteger("Enter choice: ");
+        switch (choice) {
+            case 1 -> login();
+            case 2 -> register();
+            case 3 -> resetDatabase();
+            case 0 -> {
+                System.out.println("Exiting!");
+                System.exit(0);
             }
         }
     }
 
-    static void mainMenu(){
-        System.out.println("1. Register");
-        System.out.println("2. Login");
-        System.out.println("3, Exit\n");
-        System.out.print("Enter your choice : ");
+    private static void login() throws SQLException {
+        System.out.println("\n--- LOGIN ---");
+        int userId = InputHandler.getInteger("Enter User ID: ");
+        String password = InputHandler.getString("Enter Password: ");
+        if (marketPlace.getUserDAO().authenticateUser(userId, password)) {
+            currentUser = marketPlace.getUserDAO().findById(userId);
+            System.out.println("\nWelcome, " + currentUser.getUserName() + "!");
+        } else {
+            System.out.println("\nInvalid credentials!");
+        }
     }
 
-    static void printUserMenu(User user) {
-        System.out.println("\n--- USER MENU (" + user.getUserName() + ") ---");
-        System.out.println("1. View Portfolio");
-        System.out.println("2. Place BUY Order");
-        System.out.println("3. Place SELL Order");
-        System.out.println("4. View Order Book");
-        System.out.println("5. View My Transactions");
-        System.out.println("6. View All Transactions");
-        System.out.println("7. Add money from Savings account");
-        System.out.println("8. Logout");
-        System.out.print("Enter choice: ");
-    }
+    private static void register() throws SQLException {
+        System.out.println("\n--- REGISTER NEW USER ---");
 
-    static void register() {
-        String name = inputHandler.getString("Enter username: ");
-        String pass = inputHandler.getString("Enter password: ");
-        String confirmPass = inputHandler.getString("Enter password again: ");
-        if(!pass.equals(confirmPass)){
-            System.out.println("Passwords don't match! Register again");
+        // Demat Account
+        String pan = InputHandler.getString("Enter PAN Number: ").toUpperCase();
+        if (!Validator.validatePanNumber(pan)) {
+            System.out.println("Invalid PAN format!");
             return;
         }
-        String pan = inputHandler.getString("Enter PAN number: ");
-
-        User user = new User(userId++, name, pass, pan, false);
-        users.put(user.getUserId(), user);
-
-        // automatically linking demat by PAN
-        DematAccount demat = getOrCreateDematByPAN(pan);
-        user.setDematAccountId(demat.getDemandAccountId());
-
-        // creating new trading account
-        TradingAccount trade = new TradingAccount(tradingAccountId++, user.getUserId());
-        tradings.put(trade.getTradingAccountId(), trade);
-        user.setTradingAccountId(trade.getTradingAccountId());
-
-        System.out.println("Registered! User ID: " + user.getUserId());
-    }
-
-    static void login() {
-        int id = inputHandler.getInteger("Enter User ID: ");
-
-        String pass = inputHandler.getString("Enter password: ");
-        User user = users.get(id);
-        if (user == null) {
-            System.out.println("User not found.");
-            return;
-        }
-        if (!validator.validatePassword(pass)) {
-            System.out.println("Wrong password.");
-            return;
-        }
-
-        System.out.println("Login successful! Welcome " + user.getUserName());
-        userMenu(user);
-    }
-
-    static void userMenu(User user) {
-        while (true) {
-            printUserMenu(user);
-            int choice = sc.nextInt();
-            sc.nextLine();
-
-            switch (choice) {
-                case 1:
-                    viewPortfolio(user);
-                    break;
-                case 2:
-                    placeBuyOrder(user);
-                    break;
-                case 3:
-                    placeSellOrder(user);
-                    break;
-                case 4:
-                    viewOrderBook();
-                    break;
-                case 5:
-                    viewMyTransactions(user);
-                    break;
-                case 6:
-                    viewAllTransactions();
-                    break;
-                case 7:
-                    addMoney(user);
-                    break;
-                case 8:
-                    System.out.println("Logged out.");
-                    return;
-                default:
-                    System.out.println("Invalid choice.");
-            }
-        }
-    }
-
-    static void viewPortfolio(User user) {
-        System.out.println("\n--- PORTFOLIO ---");
-
-        // Demat holdings
-        DematAccount demat = demats.get(user.getDematID());
+        DematAccount demat = marketPlace.getDematAccountDAO().findByPanNumber(pan);
         if (demat != null) {
-            demat.getHoldings();
-        } else {
-            System.out.println("No Demat account.");
-        }
-
-        // Trading account balance
-        TradingAccount ta = tradings.get(user.getTradingAccountId());
-        if (ta != null) {
-            ta.showBalances();
-        }
-    }
-
-    static void placeBuyOrder(User user) {
-        System.out.println("\nAvailable stocks: " + stockSymbols);
-        System.out.print("Enter stock name: ");
-        String stock = sc.nextLine().toUpperCase();
-
-        if (!stockSymbols.contains(stock)) {
-            System.out.println("Invalid stock.");
-            return;
-        }
-
-        System.out.print("Enter quantity: ");
-        int qty = sc.nextInt();
-        System.out.print("Enter price: ");
-        double price = sc.nextDouble();
-        sc.nextLine();
-
-        double total = qty * price;
-        int tradeId = user.getTradingAccountId();
-        TradingAccount trade = tradings.get(tradeId);
-
-        if (!trade.reserveBalance(total)) {
-            System.out.println("Insufficient balance.");
-            return;
-        }
-
-        Order order = new Order(orderId++, user.getUserId(), tradeId, stock, qty, price, true);
-        int originalQty = qty;
-        marketPlace.addBuyOrder(order);
-        ordersById.put(order.getOrderId(), order);
-        trade.addOrder(order.getOrderId());
-
-        // Show final status
-        if (order.getStatus().equals("FILLED")) {
-            System.out.println("\nOrder #" + order.getOrderId() + " completely filled!");
-        } else if (order.getStatus().equals("PARTIAL")) {
-            System.out.println("\nOrder #" + order.getOrderId() + " partially filled. Remaining: " + order.getQuantity() + " shares waiting.");
-        } else {
-            System.out.println("\nBUY order #" + order.getOrderId() + " placed. Waiting for matching sell order.");
-        }
-    }
-
-    static void placeSellOrder(User user) {
-        DematAccount demat = demats.get(user.getDematID());
-        if (demat == null) {
-            System.out.println("No Demat account.");
-            return;
-        }
-
-        demat.getHoldings();
-        System.out.print("Enter stock name: ");
-        String stock = sc.nextLine().toUpperCase();
-
-        System.out.print("Enter quantity: ");
-        int qty = sc.nextInt();
-        System.out.print("Enter price (per 1 stock): ");
-        double price = sc.nextDouble();
-        sc.nextLine();
-
-        if (!demat.reserveStocks(stock, qty)) {
-            System.out.println("Cannot reserve stocks.");
-            return;
-        }
-
-        int tradeId = user.getTradingAccountId();
-        TradingAccount trade = tradings.get(tradeId);
-
-        Order order = new Order(orderId++, user.getUserId(), tradeId, stock, qty, price, false);
-        marketPlace.addSellOrder(order);
-        ordersById.put(order.getOrderId(), order);
-        trade.addOrder(order.getOrderId());
-
-        // Show final status
-        if (order.getStatus().equals("FILLED")) {
-            System.out.println("\nOrder #" + order.getOrderId() + " completely filled!");
-        } else if (order.getStatus().equals("PARTIAL")) {
-            System.out.println("\nOrder #" + order.getOrderId() + " partially filled. Remaining: " + order.getQuantity() + " shares waiting.");
-        } else {
-            System.out.println("\nSELL order #" + order.getOrderId() + " placed. Waiting for matching buy order.");
-        }
-    }
-
-    static void viewOrderBook() {
-        System.out.println("\n--- ORDER BOOKS ---");
-        for (String stock : stockSymbols) {
-            marketPlace.printBook(stock);
-        }
-    }
-
-    static void viewMyTransactions(User user) {
-        System.out.println("\n--- MY TRANSACTIONS ---");
-        boolean found = false;
-        
-        System.out.println("+----------+--------+----------+----------+------------+--------------+------------+");
-        System.out.printf("| %-8s | %-6s | %-8s | %-8s | %-14s | %-12s | %-10s |%n",
-                "Trans ID", "Type", "Stock", "Qty", "Price(1 stock)", "Total", "Time");
-        System.out.println("+----------+--------+----------+----------+------------+--------------+------------+");
-        
-        for (Transaction t : transactions) {
-            if (t.getBuyerId() == user.getUserId() || t.getSellerId() == user.getUserId()) {
-                t.printRowForUser(user.getUserId());
-                found = true;
+            // check for active user
+            System.out.println("Demat account found for PAN: " + pan);
+            String dematPassword = InputHandler.getString("Enter Demat Password: ");
+            if (!marketPlace.getDematAccountDAO().authenticate(pan, dematPassword)) {
+                System.out.println("Invalid demat password!");
+                return;
             }
-        }
-        
-        System.out.println("+----------+--------+----------+----------+------------+--------------+------------+");
-        
-        if (!found) {
-            System.out.println("No transactions yet.");
-        }
-    }
-
-    static void viewAllTransactions() {
-        System.out.println("\n--- ALL TRANSACTIONS ---");
-        if (transactions.isEmpty()) {
-            System.out.println("No transactions yet.");
-        } else {
-            System.out.println("+----------+----------+----------+------------+--------------+------------+");
-            System.out.printf("| %-8s | %-8s | %-8s | %-14s | %-12s | %-10s |%n",
-                    "Trans ID", "Stock", "Qty", "Price(1 stock)", "Total", "Time");
-            System.out.println("+----------+----------+----------+------------+--------------+------------+");
-            for (Transaction t : transactions) {
-                t.printRow("");
+            if (marketPlace.getUserDAO().isActiveUserLinkedWithDematId(demat.getDematAccountId())) {
+                System.out.println("Active user exists with this demat account!");
+                return;
             }
-            System.out.println("+----------+----------+----------+------------+--------------+------------+");
+        } else {
+            // Create new demat
+            String dematPassword = InputHandler.getString("Create Demat Password: ");
+            if (!Validator.validatePassword(dematPassword)) {
+                System.out.println("Password does not meet requirements!");
+                return;
+            }
+            demat = marketPlace.getDematAccountDAO().createDematAccount(pan, dematPassword);
+            System.out.println("Demat account created!");
         }
-    }
 
-    static void addMoney(User user){
-        double amount = inputHandler.getDouble("Enter the amount to add : ");
-        if(amount <= 0){
-            System.out.println("Enter the amount from that 0.0");
+        // User Account
+        String username = InputHandler.getString("Enter Username: ");
+        if (!Validator.validateUserName(username)) {
+            System.out.println("Invalid username!"); // min 3 chars
             return;
         }
-        int tradeId = user.getTradingAccountId();
-        TradingAccount temp1 = tradings.get(tradeId);
-        System.out.println("Added " + amount + " Successfully!");
-        temp1.credit(amount);
+
+        String userPassword = InputHandler.getString("Create User Password: ");
+        if (!Validator.validatePassword(userPassword)) {
+            System.out.println("Password does not meet requirements!");
+            return;
+        }
+
+        User user = marketPlace.getUserDAO().createUser(username, userPassword, demat.getDematAccountId(), false);
+        double initialBalance = 1000 + Math.random() * 4000;
+        marketPlace.getTradingAccountDAO().createTradingAccount(user.getUserId(), initialBalance);
+        System.out.println("\n+---------------------------------------+");
+        System.out.println("+        REGISTRATION SUCCESSFUL        +");
+        System.out.println("+---------------------------------------+");
+        System.out.printf("+  User ID       : %-20d +%n", user.getUserId());
+        System.out.printf("+  Username      : %-20s +%n", user.getUserName());
+        System.out.printf("+  Initial Balance: Rs.%-16.2f +%n", initialBalance);
+        System.out.println("+---------------------------------------+");
+
     }
 
-    static DematAccount getOrCreateDematByPAN(String pan) {
-        for (DematAccount d : demats.values()) {
-            if (d.getPanNumber().equals(pan)) {
-                System.out.println("Linked existing Demat for PAN: " + pan);
-                return d;
-            }
+    private static void resetDatabase() throws SQLException {
+        if (InputHandler.getYesNo("Sure you want to reset the database? Y to confirm")) {
+            DatabaseConfig.resetDatabase();
         }
-        DematAccount newDemat = new DematAccount(dematAccountId++, pan);
-        demats.put(newDemat.getDemandAccountId(), newDemat);
-        System.out.println("Created new Demat for PAN: " + pan);
-        return newDemat;
+    }
+
+    private static void showMainMenu() throws SQLException {
+        System.out.println("\n+-----------------------------------------------------------+");
+        System.out.printf("+  MAIN MENU                    User: %s %n", currentUser.getUserName());
+        System.out.println("+-----------------------------------------------------------+");
+        System.out.println("+  1. Place BUY Order                                       +");
+        System.out.println("+  2. Place SELL Order                                      +");
+        System.out.println("+  3. View My Orders                                        +");
+        System.out.println("+  4. Modify Order                                          +");
+        System.out.println("+  5. Cancel Order                                          +");
+        System.out.println("+  6. View Order Book                                       +");
+        System.out.println("+  7. View My Transactions                                  +");
+        System.out.println("+  8. View All Transactions                                 +");
+        System.out.println("+  9. View Balance                                          +");
+        System.out.println("+ 10. Add Balance                                           +");
+        System.out.println("+ 11. View Portfolio                                        +");
+        System.out.println("+ 12. View Available Stocks                                 +");
+        System.out.println("+  0. Logout                                                +");
+        System.out.println("+-----------------------------------------------------------+");
+
+        int choice = InputHandler.getInteger("Enter choice: ");
+        switch (choice) {
+            case 1 -> placeBuyOrder();
+            case 2 -> placeSellOrder();
+            case 3 -> marketPlace.showUserOrders(currentUser.getUserId());
+            case 4 -> modifyOrder();
+            case 5 -> cancelOrder();
+            case 6 -> viewOrderBook();
+            case 7 -> marketPlace.showTransactions(currentUser.getUserId());
+            case 8 -> marketPlace.showAllTransactions();
+            case 9 -> marketPlace.showBalance(currentUser.getUserId());
+            case 10 -> addBalance();
+            case 11 -> marketPlace.showPortfolio(currentUser.getUserId());
+            case 12 -> showAvailableStocks();
+            case 0 -> logout();
+        }
+    }
+
+    private static void placeBuyOrder() throws SQLException {
+        System.out.println("\n--- PLACE BUY ORDER ---");
+        showAvailableStocks();
+
+        String stockName = InputHandler.getString("Enter Stock Name: ").toUpperCase();
+        int quantity = InputHandler.getPositiveInteger("Enter Quantity: ");
+        double price = InputHandler.getPositiveDouble("Enter Price per share: Rs.");
+        marketPlace.placeBuyOrder(currentUser.getUserId(), stockName, quantity, price);
+    }
+
+    private static void placeSellOrder() throws SQLException {
+        System.out.println("\n--- PLACE SELL ORDER ---");
+        marketPlace.showPortfolio(currentUser.getUserId());
+
+        String stockName = InputHandler.getString("Enter Stock Name: ").toUpperCase();
+        int quantity = InputHandler.getPositiveInteger("Enter Quantity: ");
+        double price = InputHandler.getPositiveDouble("Enter Price per share: Rs.");
+        marketPlace.placeSellOrder(currentUser.getUserId(), stockName, quantity, price);
+    }
+
+    private static void modifyOrder() throws SQLException {
+        System.out.println("\n--- MODIFY ORDER ---");
+        marketPlace.showUserOrders(currentUser.getUserId());
+
+        int orderId = InputHandler.getPositiveInteger("Enter Order ID to modify: ");
+        int newQuantity = InputHandler.getPositiveInteger("Enter New Quantity: ");
+        double newPrice = InputHandler.getPositiveDouble("Enter New Price: Rs.");
+        marketPlace.modifyOrder(currentUser.getUserId(), orderId, newQuantity, newPrice);
+    }
+
+    private static void cancelOrder() throws SQLException {
+        System.out.println("\n--- CANCEL ORDER ---");
+        marketPlace.showUserOrders(currentUser.getUserId());
+
+        int orderId = InputHandler.getPositiveInteger("Enter Order ID to cancel: ");
+        if (InputHandler.getYesNo("Sure you want to cancel order #" + orderId + "?")) {
+            marketPlace.cancelOrder(currentUser.getUserId(), orderId);
+        }
+    }
+
+    private static void viewOrderBook() throws SQLException {
+        System.out.println("\n--- VIEW ORDER BOOK ---");
+        showAvailableStocks();
+
+        String stockName = InputHandler.getString("Enter Stock Name: ").toUpperCase();
+        marketPlace.showOrderBook(stockName);
+    }
+
+    private static void addBalance() throws SQLException {
+        System.out.println("\n--- ADD BALANCE ---");
+        marketPlace.showBalance(currentUser.getUserId());
+
+        double amount = InputHandler.getPositiveDouble("Enter amount to add: Rs.");
+        marketPlace.addBalance(currentUser.getUserId(), amount);
+        marketPlace.showBalance(currentUser.getUserId());
+    }
+
+    private static void showAvailableStocks() throws SQLException {
+        List<String> stocks = marketPlace.getStockDAO().getStocks();
+
+        System.out.println("\n+---------------------------------------+");
+        System.out.println("+         AVAILABLE STOCKS              +");
+        System.out.println("+---------------------------------------+");
+        for (String stock : stocks) {
+            System.out.printf("+   • %-33s +%n", stock);
+        }
+        System.out.println("+---------------------------------------+");
+    }
+
+    private static void logout() {
+        System.out.println("\nLogged out successfully. Exiting, " + currentUser.getUserName() + "!");
+        currentUser = null;
     }
 }
