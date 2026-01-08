@@ -235,13 +235,12 @@ public class Main {
     }
 
     private static void showAvailableStocks() throws SQLException {
-        List<String> stocks = marketPlace.getStockDAO().getStocks();
-
+        List<Stock> stocks = marketPlace.getStockDAO().listAllStocks();
         System.out.println("\n+---------------------------------------+");
         System.out.println("+         AVAILABLE STOCKS              +");
         System.out.println("+---------------------------------------+");
-        for (String stock : stocks) {
-            System.out.printf("+   • %-33s +%n", stock);
+        for (Stock stock : stocks) {
+            System.out.printf("+   • %-33s +%n", stock.getStockName());
         }
 
         System.out.println("+---------------------------------------+");

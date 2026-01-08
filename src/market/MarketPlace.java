@@ -74,7 +74,7 @@ public class MarketPlace {
         }
 
         Order order = orderDAO.createOrder(userId, stockName, quantity, price, false);
-        System.out.println("✓ SELL order placed: #" + order.getOrderId());
+        System.out.println("SELL order placed: #" + order.getOrderId());
 
         autoMatch(stock.getStockId());
 
@@ -106,14 +106,10 @@ public class MarketPlace {
             Order buy = null;
             Order sell = null;
 
-        /* =========================
-           USER CONFLICT HANDLING
-           ========================= */
             if (bestBuy.getUserId() != bestSell.getUserId()) {
                 buy = bestBuy;
                 sell = bestSell;
-            } else {
-                // Try alternate sell
+            } else { // alternate sell
                 for (Order s : sellOrders) {
                     if (s.getPrice() > bestBuy.getPrice()) break;
                     if (s.getUserId() != bestBuy.getUserId() && s.getQuantity() > 0) {
@@ -123,7 +119,7 @@ public class MarketPlace {
                     }
                 }
 
-                // Try alternate buy
+                // alternate buy
                 if (sell == null) {
                     for (Order b : buyOrders) {
                         if (b.getPrice() < bestSell.getPrice()) break;
@@ -136,12 +132,11 @@ public class MarketPlace {
                 }
             }
 
-            // 🚫 No valid match
+            // 🚫 No match
             if (buy == null || sell == null) {
                 break;
             }
 
-            // 🚫 ZERO QUANTITY GUARD (CRITICAL)
             if (buy.getQuantity() <= 0 || sell.getQuantity() <= 0) {
                 if (buy.getQuantity() <= 0) {
                     orderDAO.cancelOrder(buy.getOrderId());
@@ -152,10 +147,9 @@ public class MarketPlace {
                 continue;
             }
 
-            // ✅ Execute ONE safe trade
             boolean tradeDone = executeTrade(buy, sell);
 
-            // 🚫 Trade failed → stop infinite loop
+            // 🚫 Trade failed, stop infinite loop
             if (!tradeDone) {
                 break;
             }

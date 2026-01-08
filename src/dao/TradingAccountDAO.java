@@ -1,111 +1,88 @@
 package dao;
 
-import dbConnection.DatabaseConfig;
+import dbOperations.*;
 import account.TradingAccount;
-import java.sql.*;
+
+import java.sql.SQLException;
+import java.util.*;
 
 public class TradingAccountDAO {
-    public TradingAccount findByUserId(int userId){
-        String query = "SELECT * FROM trading_accounts WHERE user_id = ?";
-        try(
-                Connection con = DatabaseConfig.getConnection();
-                PreparedStatement ps = con.prepareStatement(query);
-                ){
-            ps.setInt(1, userId);
-            ResultSet rs = ps.executeQuery();
-            if(rs.next()){
-                return printRow(rs);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
+
+    private static String tableName = "trading_accounts";
+
+    public TradingAccount findByUserId(int userId) throws SQLException {
+        Condition c = new Condition();
+        c.add("user_id", userId);
+        ArrayList<HashMap<String, Object>> rows = SelectOperation.select(tableName, c);
+        return !rows.isEmpty() ? mapToTradingAccount(rows.get(0)) : null;
     }
 
-    public TradingAccount createTradingAccount(int userId, double balance){
-        String query = "INSERT INTO trading_accounts(user_id, balance) values (?, ?)";
-        try (
-                Connection con = DatabaseConfig.getConnection();
-                PreparedStatement ps = con.prepareStatement(query, Statement.RETURN_GENERATED_KEYS);
-                ){
-            ps.setInt(1, userId);
-            ps.setDouble(2, balance);
-            ps.executeUpdate();
-
-            ResultSet rs = ps.getGeneratedKeys();
-            if(rs.next()){
-                TradingAccount tradingAccount = new TradingAccount();
-                tradingAccount.setTradingAccountId(rs.getInt(1));
-                tradingAccount.setUserId(userId);
-                tradingAccount.setBalance(balance);
-                tradingAccount.setReservedBalance(0);
-                return findByUserId(userId);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
+    public TradingAccount createTradingAccount(int userId, double balance) throws SQLException {
+        Condition data = new Condition();
+        data.add("user_id", userId);
+        data.add("balance", balance);
+        data.add("reserved_balance", 0.0);
+        int tradingId = InsertOperation.insert(tableName, data);
+        return tradingId > 0 ? findByUserId(userId) : null;
     }
 
     public boolean reserveBalance(int userId, double amount) throws SQLException {
-        String sql = "UPDATE trading_accounts SET reserved_balance = reserved_balance + ?, balance = balance - ? WHERE user_id = ? AND balance >= ? ";
-        try (Connection conn = DatabaseConfig.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setDouble(1, amount);
-            ps.setDouble(2, amount);
-            ps.setInt(3, userId);
-            ps.setDouble(4, amount);
-            return ps.executeUpdate() > 0; // int rows = ps.executeUpdate(); true -> 1
-        }
+        TradingAccount acc = findByUserId(userId);
+        if (acc == null || acc.getBalance() < amount) return false;
+
+        Condition set = new Condition();
+        set.add("balance", acc.getBalance() - amount);
+        set.add("reserved_balance", acc.getReservedBalance() + amount);
+        Condition where = new Condition();
+        where.add("user_id", userId);
+        return UpdateOperation.update(tableName, set, where) > 0;
     }
 
-    public boolean releaseReservedBalance(int userId, double amount) throws SQLException{
-        String sql = "UPDATE trading_accounts SET reserved_balance = reserved_balance - ?, balance = balance + ? WHERE user_id = ? AND reserved_balance >= ?";
-        try (Connection conn = DatabaseConfig.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setDouble(1, amount);
-            ps.setDouble(2, amount);
-            ps.setInt(3, userId);
-            ps.setDouble(4, amount);
-            return ps.executeUpdate() > 0; // int rows = ps.executeUpdate(); true -> 1
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return false;
+    public boolean releaseReservedBalance(int userId, double amount) throws SQLException {
+        TradingAccount acc = findByUserId(userId);
+        if (acc == null || acc.getReservedBalance() < amount) return false;
+
+        Condition set = new Condition();
+        set.add("balance", acc.getBalance() + amount);
+        set.add("reserved_balance", acc.getReservedBalance() - amount);
+        Condition where = new Condition();
+        where.add("user_id", userId);
+        return UpdateOperation.update(tableName, set, where) > 0;
     }
 
     public boolean debit(int userId, double amount) throws SQLException {
-        String sql = "UPDATE trading_accounts SET reserved_balance = reserved_balance - ? WHERE user_id = ? AND reserved_balance >= ?";
-        try (Connection con = DatabaseConfig.getConnection();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setDouble(1, amount);
-            ps.setInt(2, userId);
-            ps.setDouble(3, amount);
-            return ps.executeUpdate() > 0;
-        }
+        TradingAccount acc = findByUserId(userId);
+        if (acc == null || acc.getReservedBalance() < amount) return false;
+
+        Condition set = new Condition();
+        set.add("reserved_balance", acc.getReservedBalance() - amount);
+        Condition where = new Condition();
+        where.add("user_id", userId);
+        return UpdateOperation.update(tableName, set, where) > 0;
     }
 
     public boolean credit(int userId, double amount) throws SQLException {
-        String sql = "UPDATE trading_accounts SET balance = balance + ? WHERE user_id = ?";
-        try (Connection con = DatabaseConfig.getConnection();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setDouble(1, amount);
-            ps.setInt(2, userId);
-            return ps.executeUpdate() > 0;
-        }
+        TradingAccount acc = findByUserId(userId);
+        if (acc == null) return false;
+
+        Condition set = new Condition();
+        set.add("balance", acc.getBalance() + amount);
+        Condition where = new Condition();
+        where.add("user_id", userId);
+        return UpdateOperation.update(tableName, set, where) > 0;
     }
 
-    public double getAvailableBalance(int userId){
-        TradingAccount tradingAccount = findByUserId(userId);
-        return tradingAccount != null ? tradingAccount.getBalance() : 0.0;
+    public double getAvailableBalance(int userId) throws SQLException {
+        TradingAccount acc = findByUserId(userId);
+        return acc != null ? acc.getBalance() : 0.0;
     }
 
-    private TradingAccount printRow(ResultSet rs) throws SQLException {
-        TradingAccount tradingAccount = new TradingAccount();
-        tradingAccount.setTradingAccountId(rs.getInt(1));
-        tradingAccount.setUserId(rs.getInt(2));
-        tradingAccount.setBalance(rs.getDouble(3));
-        tradingAccount.setReservedBalance(rs.getDouble(4));
-        return tradingAccount;
+    private TradingAccount mapToTradingAccount(HashMap<String, Object> row) {
+        TradingAccount account = new TradingAccount();
+        account.setTradingAccountId(((Number) row.get("trading_id")).intValue());
+        account.setUserId(((Number) row.get("user_id")).intValue());
+        account.setBalance(((Number) row.get("balance")).doubleValue());
+        account.setReservedBalance(((Number) row.get("reserved_balance")).doubleValue());
+        return account;
     }
 }

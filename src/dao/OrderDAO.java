@@ -2,157 +2,126 @@ package dao;
 
 import dbConnection.DatabaseConfig;
 import trading.*;
+import dbOperations.*;
 
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class OrderDAO {
 
-    private StockDAO stockDAO = new StockDAO();
+    private String tableName = "orders o";
+    private String joinCondition = "JOIN stocks s ON o.stock_id = s.stock_id";
+    private String[] COLUMNS = {"o.*", "s.stock_name"};
 
-    public Order findById(int orderId) throws SQLException{
-        String query = "select o.*, s.stock_name from orders o join stocks s on o.stock_id = s.stock_id where o.order_id = ?";
-        try (Connection con = DatabaseConfig.getConnection();
-             PreparedStatement ps = con.prepareStatement(query);
-        ){
-            ps.setInt(1, orderId);
-            ResultSet rs =  ps.executeQuery();
-            if(rs.next()){
-                return printRow(rs);
-            }
-        }
-        return null;
+    public Order findById(int orderId) throws SQLException {
+        Condition c = new Condition();
+        c.add("o.order_id", orderId);
+        ArrayList<HashMap<String, Object>> rows = SelectOperation.selectWithJoin(
+                tableName, COLUMNS, joinCondition, c, null
+        );
+        return !rows.isEmpty() ? mapToOrder(rows.get(0)) : null;
     }
 
-    public Order createOrder(int userId, String stockName, int quantity, double price, boolean isBuy) throws SQLException {
+    public Order createOrder(int userId, String stockName,
+                             int quantity, double price, boolean isBuy) throws SQLException {
         int stockId = StockDAO.getStockIdByName(stockName);
         if (stockId < 0) {
             throw new SQLException("Stock not found: " + stockName);
         }
-        String sql = "INSERT INTO orders (user_id, stock_id, quantity, price, is_buy) VALUES (?, ?, ?, ?, ?)";
-        try (Connection conn = DatabaseConfig.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            stmt.setInt(1, userId);
-            stmt.setInt(2, stockId);
-            stmt.setInt(3, quantity);
-            stmt.setDouble(4, price);
-            stmt.setBoolean(5, isBuy);
-            stmt.executeUpdate();
-            ResultSet keys = stmt.getGeneratedKeys();
-            if (keys.next()) {
-                return findById(keys.getInt(1));
-            }
-        }
-        return null;
+        Condition data = new Condition();
+        data.add("user_id", userId);
+        data.add("stock_id", stockId);
+        data.add("quantity", quantity);
+        data.add("price", price);
+        data.add("is_buy", isBuy);
+        int orderId = InsertOperation.insert(tableName, data);
+        return orderId > 0 ? findById(orderId) : null;
     }
 
-    public Order printRow(ResultSet rs) throws SQLException {
+    public Order mapToOrder(HashMap<String, Object> row) throws SQLException {
         Order order = new Order();
-        order.setOrderId(rs.getInt("order_id"));
-        order.setUserId(rs.getInt("user_id"));
-        order.setStockId(rs.getInt("stock_id"));
-        order.setQuantity(rs.getInt("quantity"));
-        order.setPrice(rs.getDouble("price"));
-        order.setBuy(rs.getBoolean("is_buy"));
+        order.setOrderId(((Number) row.get("order_id")).intValue());
+        order.setUserId(((Number) row.get("user_id")).intValue());
+        order.setStockId(((Number) row.get("stock_id")).intValue());
+        order.setQuantity(((Number) row.get("quantity")).intValue());
+        order.setPrice(((Number) row.get("price")).doubleValue());
+        order.setBuy((Boolean) row.get("is_buy"));
         return order;
+    }
+
+    private List<Order> mapToOrderList(ArrayList<HashMap<String, Object>> rows) throws SQLException {
+        List<Order> orders = new ArrayList<>();
+        for (HashMap<String, Object> row : rows) {
+            orders.add(mapToOrder(row));
+        }
+        return orders;
     }
 
     // all buy orders
     public List<Order> getBuyOrders(String stockName) throws SQLException {
         int stockId = StockDAO.getStockIdByName(stockName);
-        List<Order> orders = new ArrayList<>();
-
-        String sql = """
-            SELECT o.*, s.stock_name 
-            FROM orders o 
-            JOIN stocks s ON o.stock_id = s.stock_id 
-            WHERE o.stock_id = ? 
-              AND o.is_buy = TRUE
-            ORDER BY o.price DESC, o.order_id ASC
-            """;
-
-        try (Connection conn = DatabaseConfig.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, stockId);
-            ResultSet rs = stmt.executeQuery();
-            while (rs.next()) {
-                orders.add(printRow(rs));
-            }
-        }
-        return orders;
+        Condition c = new Condition();
+        c.add("o.stock_id", stockId);
+        c.add("o.is_buy", "TRUE");
+        ArrayList<HashMap<String, Object>> rows = SelectOperation.selectWithJoin(
+                tableName, COLUMNS, joinCondition, c, "o.price DESC, o.order_id ASC"
+        );
+        return mapToOrderList(rows);
     }
 
     // all sell orders
     public List<Order> getSellOrders(String stockName) throws SQLException {
         int stockId = StockDAO.getStockIdByName(stockName);
-        List<Order> orders = new ArrayList<>();
-
-        String sql = "SELECT o.*, s.stock_name FROM orders o JOIN stocks s ON o.stock_id = s.stock_id WHERE o.stock_id = ? AND o.is_buy = FALSE ORDER BY o.price ASC, o.order_id ASC";
-
-        try (Connection conn = DatabaseConfig.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, stockId);
-            ResultSet rs = stmt.executeQuery();
-            while (rs.next()) {
-                orders.add(printRow(rs));
-            }
-        }
-        return orders;
+        Condition c = new Condition();
+        c.add("o.stock_id", stockId);
+        c.add("o.is_buy", "FALSE");
+        ArrayList<HashMap<String, Object>> rows = SelectOperation.selectWithJoin(
+                tableName, COLUMNS, joinCondition, c, "o.price ASC, o.order_id ASC"
+        );
+        return mapToOrderList(rows);
     }
 
     // user specific orders
     public List<Order> findByUserId(int userId) throws SQLException {
-        List<Order> orders = new ArrayList<>();
-
-        String sql = """
-            SELECT o.*, s.stock_name 
-            FROM orders o 
-            JOIN stocks s ON o.stock_id = s.stock_id 
-            WHERE o.user_id = ?
-            ORDER BY o.order_id
-            """;
-
-        try (Connection conn = DatabaseConfig.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, userId);
-            ResultSet rs = stmt.executeQuery();
-            while (rs.next()) {
-                orders.add(printRow(rs));
-            }
-        }
-        return orders;
+        Condition c = new Condition();
+        c.add("o.user_id", userId);
+        ArrayList<HashMap<String, Object>> rows = SelectOperation.selectWithJoin(
+                tableName, COLUMNS, joinCondition, c, "o.order_id"
+        );
+        return mapToOrderList(rows);
     }
 
     // updates only quantity
     public boolean updateQuantity(int orderId, int newQuantity) throws SQLException {
-        String sql = "UPDATE orders SET quantity = ? WHERE order_id = ?";
-        try (Connection conn = DatabaseConfig.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, newQuantity);
-            stmt.setInt(2, orderId);
-            return stmt.executeUpdate() > 0;
+        if (newQuantity <= 0) {
+            return cancelOrder(orderId);
         }
+        Condition set = new Condition();
+        set.add("quantity", newQuantity);
+        Condition where = new Condition();
+        where.add("order_id", orderId);
+        int affected = UpdateOperation.update(tableName, set, where);
+        return affected > 0;
     }
 
     // updates both quantity and price
     public boolean modifyOrder(int orderId, int newQuantity, double newPrice) throws SQLException {
-        String sql = "UPDATE orders SET quantity = ?, price = ? WHERE order_id = ?";
-        try (Connection conn = DatabaseConfig.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, newQuantity);
-            stmt.setDouble(2, newPrice);
-            stmt.setInt(3, orderId);
-            return stmt.executeUpdate() > 0;
+        if (newQuantity <= 0){
+            return cancelOrder(orderId);
         }
+        Condition set = new Condition();
+        set.add("quantity", newQuantity);
+        set.add("price", newPrice);
+        Condition where = new Condition();
+        where.add("order_id", orderId);
+        int affected = UpdateOperation.update(tableName, set, where);
+        return affected > 0;
     }
 
     public boolean cancelOrder(int orderId) throws SQLException {
-        String sql = "DELETE FROM orders WHERE order_id = ?";
-        try (Connection conn = DatabaseConfig.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, orderId);
-            return stmt.executeUpdate() > 0;
-        }
+        Condition where = new Condition();
+        where.add("order_id", orderId);
+        int affected = DeleteOperation.delete(tableName, where);
+        return affected > 0;
     }
 }
