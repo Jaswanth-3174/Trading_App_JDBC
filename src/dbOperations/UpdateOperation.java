@@ -10,13 +10,14 @@ public class UpdateOperation {
             return 0;
         }
 
-        String setSQL = setData.toSQL();
-        setSQL = setSQL.replace(" AND ", ", ");
+        String tableName = table.split(" ")[0];
+        String setSQL = setData.toSQL().replace(" AND ", ", ");
+
         String sql;
         if (whereCondition == null || whereCondition.isEmpty()) {
-            sql = "UPDATE " + table + " SET " + setSQL;
+            sql = "UPDATE " + tableName + " SET " + setSQL;
         } else {
-            sql = "UPDATE " + table + " SET " + setSQL + " WHERE " + whereCondition.toSQL();
+            sql = "UPDATE " + tableName + " SET " + setSQL + " WHERE " + whereCondition.toSQL();
         }
 
         Connection con = DbHelper.getConnection();

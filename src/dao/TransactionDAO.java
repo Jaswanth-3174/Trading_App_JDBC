@@ -13,7 +13,7 @@ public class TransactionDAO {
     public String tableName = "transactions";
     public String[] columns = {"t.*", "s.stock_name", "buy.username as buyer_name",
                                 "sel.username as seller_name"};
-    public String joinCondition = "JOIN stocks s ON t.stock_id = s.stock_id JOIN users buy ON t.buyer_id = buy.user_id JOIN users sel ON t.seller_id = sel.user_id";
+    public String joinCondition = "t JOIN stocks s ON t.stock_id = s.stock_id JOIN users buy ON t.buyer_id = buy.user_id JOIN users sel ON t.seller_id = sel.user_id";
 
     public Transaction createTransaction(int buyerId, int sellerId, int stockId, int quantity, double price) throws SQLException {
         Condition data = new Condition();

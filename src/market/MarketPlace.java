@@ -38,8 +38,8 @@ public class MarketPlace {
         double total = quantity * price;
 
         if (!tradingAccountDAO.reserveBalance(userId, total)) {
-            TradingAccount ta = tradingAccountDAO.findByUserId(userId);
-            double available = ta != null ? ta.getAvailableBalance() : 0;
+     //       TradingAccount ta = tradingAccountDAO.findByUserId(userId);
+     //       double available = ta != null ? ta.getAvailableBalance() : 0;
             System.out.println("Insufficient balance!"); // Need Rs." + total + ", Available: Rs." + available);
             return null;
         }
@@ -82,13 +82,10 @@ public class MarketPlace {
     }
 
     private void autoMatch(int stockId) throws SQLException {
-
-        String stockName = StockDAO.getStockNameById(stockId);
-
         while (true) {
 
-            List<Order> buyOrders = orderDAO.getBuyOrders(stockName);
-            List<Order> sellOrders = orderDAO.getSellOrders(stockName);
+            List<Order> buyOrders = orderDAO.getBuyOrders(stockId);
+            List<Order> sellOrders = orderDAO.getSellOrders(stockId);
 
             // 🚫 No possible match
             if (buyOrders.isEmpty() || sellOrders.isEmpty()) {
@@ -119,7 +116,14 @@ public class MarketPlace {
                     }
                 }
 
-                // alternate buy
+                if (sell == null) {
+                    sell = orderDAO.findMatchingOrder(stockId, false, bestBuy.getUserId(), bestBuy.getPrice());
+                    if (sell != null) {
+                        buy = bestBuy;
+                    }
+                }
+
+                // alternate buy if still no match
                 if (sell == null) {
                     for (Order b : buyOrders) {
                         if (b.getPrice() < bestSell.getPrice()) break;
@@ -127,6 +131,13 @@ public class MarketPlace {
                             buy = b;
                             sell = bestSell;
                             break;
+                        }
+                    }
+
+                    if (buy == null) {
+                        buy = orderDAO.findMatchingOrder(stockId, true, bestSell.getUserId(), bestSell.getPrice());
+                        if (buy != null) {
+                            sell = bestSell;
                         }
                     }
                 }
@@ -327,11 +338,8 @@ public class MarketPlace {
 
             DatabaseConfig.commit();
             System.out.println("Order #" + orderId + " modified successfully!");
-
             autoMatch(order.getStockId());
-
             return true;
-
         } catch (SQLException e) {
             DatabaseConfig.rollback();
             throw e;
@@ -341,9 +349,7 @@ public class MarketPlace {
     public boolean cancelOrder(int userId, int orderId) throws SQLException {
         try {
             DatabaseConfig.beginTransaction();
-
             Order order = orderDAO.findById(orderId);
-
             if (order == null) {
                 System.out.println("Order not found!");
                 DatabaseConfig.rollback();
@@ -392,8 +398,9 @@ public class MarketPlace {
             return;
         }
 
-        List<Order> buyOrders = orderDAO.getBuyOrders(stockName);
-        List<Order> sellOrders = orderDAO.getSellOrders(stockName);
+        int stockId = StockDAO.getStockIdByName(stockName);
+        List<Order> buyOrders = orderDAO.getBuyOrders(stockId);
+        List<Order> sellOrders = orderDAO.getSellOrders(stockId);
 
         System.out.println("\n+---------------------------------------------------------------+");
         System.out.println("+                    ORDER BOOK: " + stockName + "        +");

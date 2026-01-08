@@ -10,8 +10,9 @@ import java.util.*;
 public class OrderDAO {
 
     private String tableName = "orders o";
-    private String joinCondition = "JOIN stocks s ON o.stock_id = s.stock_id";
+    private String joinCondition = "o JOIN stocks s ON o.stock_id = s.stock_id";
     private String[] COLUMNS = {"o.*", "s.stock_name"};
+    private int size = 10; // limit 10
 
     public Order findById(int orderId) throws SQLException {
         Condition c = new Condition();
@@ -57,28 +58,95 @@ public class OrderDAO {
         return orders;
     }
 
-    // all buy orders
-    public List<Order> getBuyOrders(String stockName) throws SQLException {
-        int stockId = StockDAO.getStockIdByName(stockName);
+    public List<Order> getBuyOrders(int stockId) throws SQLException {
         Condition c = new Condition();
-        c.add("o.stock_id", stockId);
-        c.add("o.is_buy", "TRUE");
+        c.add("stock_id", stockId);
+        c.add("is_buy", true);
         ArrayList<HashMap<String, Object>> rows = SelectOperation.selectWithJoin(
-                tableName, COLUMNS, joinCondition, c, "o.price DESC, o.order_id ASC"
+                tableName, null, null, c, "price DESC, order_id ASC", size
         );
         return mapToOrderList(rows);
     }
 
-    // all sell orders
-    public List<Order> getSellOrders(String stockName) throws SQLException {
-        int stockId = StockDAO.getStockIdByName(stockName);
+    public List<Order> getSellOrders(int stockId) throws SQLException {
         Condition c = new Condition();
-        c.add("o.stock_id", stockId);
-        c.add("o.is_buy", "FALSE");
+        c.add("stock_id", stockId);
+        c.add("is_buy", false);
         ArrayList<HashMap<String, Object>> rows = SelectOperation.selectWithJoin(
-                tableName, COLUMNS, joinCondition, c, "o.price ASC, o.order_id ASC"
+                tableName, null, null, c, "price ASC, order_id ASC", size
         );
         return mapToOrderList(rows);
+    }
+
+    public List<Order> getNextBuyOrders(int stockId, double lastPrice, int lastOrderId) throws SQLException {
+        String sql = """
+            SELECT * FROM orders 
+            WHERE stock_id = ? AND is_buy = TRUE 
+            AND (price < ? OR (price = ? AND order_id > ?))
+            ORDER BY price DESC, order_id ASC 
+            LIMIT ?
+            """;
+        return executeWithCursor(sql, stockId, lastPrice, lastPrice, lastOrderId, size);
+    }
+
+    public List<Order> getNextSellOrders(int stockId, double lastPrice, int lastOrderId) throws SQLException {
+        String sql = """
+            SELECT * FROM orders 
+            WHERE stock_id = ? AND is_buy = FALSE 
+            AND (price > ? OR (price = ? AND order_id > ?))
+            ORDER BY price ASC, order_id ASC 
+            LIMIT ?
+            """;
+        return executeWithCursor(sql, stockId, lastPrice, lastPrice, lastOrderId, size);
+    }
+
+    public Order findMatchingOrder(int stockId, boolean isBuy, int excludeUserId, double priceThreshold) throws SQLException {
+        String sql;
+        if (isBuy) {
+            // look for buy orders with price >= threshold
+            sql = """
+                SELECT * FROM orders 
+                WHERE stock_id = ? AND is_buy = TRUE AND user_id != ? AND price >= ?
+                ORDER BY price DESC, order_id ASC 
+                LIMIT 1
+                """;
+        } else {
+            // look for sell orders with price <= threshold
+            sql = """
+                SELECT * FROM orders 
+                WHERE stock_id = ? AND is_buy = FALSE AND user_id != ? AND price <= ?
+                ORDER BY price ASC, order_id ASC 
+                LIMIT 1
+                """;
+        }
+
+        try (Connection con = DatabaseConfig.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, stockId);
+            ps.setInt(2, excludeUserId);
+            ps.setDouble(3, priceThreshold);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                return mapToOrderFromResultSet(rs);
+            }
+        }
+        return null;
+    }
+
+    // Helper: Execute cursor-based query
+    private List<Order> executeWithCursor(String sql, Object... params) throws SQLException {
+        List<Order> orders = new ArrayList<>();
+        try (Connection con = DatabaseConfig.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            for (int i = 0; i < params.length; i++) {
+                ps.setObject(i + 1, params[i]);
+            }
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                orders.add(mapToOrderFromResultSet(rs));
+            }
+        }
+        return orders;
     }
 
     // user specific orders
@@ -123,5 +191,16 @@ public class OrderDAO {
         where.add("order_id", orderId);
         int affected = DeleteOperation.delete(tableName, where);
         return affected > 0;
+    }
+
+    private Order mapToOrderFromResultSet(ResultSet rs) throws SQLException {
+        Order order = new Order();
+        order.setOrderId(rs.getInt("order_id"));
+        order.setUserId(rs.getInt("user_id"));
+        order.setStockId(rs.getInt("stock_id"));
+        order.setQuantity(rs.getInt("quantity"));
+        order.setPrice(rs.getDouble("price"));
+        order.setBuy(rs.getBoolean("is_buy"));
+        return order;
     }
 }

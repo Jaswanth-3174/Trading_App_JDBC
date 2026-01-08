@@ -5,17 +5,27 @@ import java.util.*;
 
 public class SelectOperation {
 
-    public static ArrayList<HashMap<String, Object>> select(String tableName, Condition condition) throws SQLException {
-        return selectWithJoin(tableName, null, null, condition, null);
+    public static ArrayList<HashMap<String, Object>>
+    select(String tableName, Condition condition) throws SQLException {
+        return selectWithJoin(tableName, null, null, condition, null, 0);
     }
 
-    public static ArrayList<HashMap<String, Object>> select(String tableName, String[] columns, Condition condition) throws SQLException{
-        return selectWithJoin(tableName, columns, null, condition, null);
+    public static ArrayList<HashMap<String, Object>>
+    select(String tableName, String[] columns, Condition condition) throws SQLException{
+        return selectWithJoin(tableName, columns, null, condition, null, 0);
     }
 
-    public static ArrayList<HashMap<String, Object>> selectWithJoin(String tableName, String[] columns, String join, Condition condition, String order) throws SQLException{
+    public static ArrayList<HashMap<String, Object>>
+    selectWithJoin(String tableName, String[] columns, String join, Condition condition, String order) throws SQLException{
+        return selectWithJoin(tableName, columns, join, condition, order, 0);
+    }
+
+    public static ArrayList<HashMap<String, Object>>
+    selectWithJoin(String table, String[] columns, String join,
+                   Condition condition, String order, int limit) throws SQLException{
         ArrayList<HashMap<String, Object>> rows = new ArrayList<>();
 
+        String tableName = table.split(" ")[0];
         String columnList;
         if(columns == null || columns.length == 0){
             columnList = "*";
@@ -30,13 +40,17 @@ public class SelectOperation {
             sql.append(" ").append(join);
         }
 
-        // Add WHERE clause if provided
+        // where
         if (condition != null && !condition.isEmpty()) {
             sql.append(" WHERE ").append(condition.toSQL());
         }
 
         if(order != null && !order.isEmpty()){
             sql.append(" ORDER BY ").append(order);
+        }
+
+        if(limit > 0){
+            sql.append(" LIMIT ").append(limit);
         }
 
         System.out.println("DEBUG SQL: " + sql.toString());

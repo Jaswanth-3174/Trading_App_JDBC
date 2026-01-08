@@ -4,21 +4,26 @@ import java.sql.*;
 import java.util.*;
 
 public class DeleteOperation {
-    public static int delete(String tableName, Condition condition) throws SQLException{
+    public static int delete(String table, Condition condition) throws SQLException {
+
+        String tableName = table.split(" ")[0];
 
         String sql;
-        if(condition == null || condition.isEmpty()){
+        if (condition == null || condition.isEmpty()) {
             sql = "DELETE FROM " + tableName;
-        }else{
+        } else {
             sql = "DELETE FROM " + tableName + " WHERE " + condition.toSQL();
         }
 
-        Connection conn = DbHelper.getConnection();
-        PreparedStatement ps = conn.prepareStatement(sql);
-        if(condition != null){
-            ArrayList<Object> values = new ArrayList<>();
-            for(int i=0; i<values.size(); i++){
-                ps.setObject(i+1, values.get(i));
+        System.out.println("DEBUG DELETE SQL: " + sql);
+
+        // Execute
+        Connection con = DbHelper.getConnection();
+        PreparedStatement ps = con.prepareStatement(sql);
+        if (condition != null && !condition.isEmpty()) {
+            ArrayList<Object> values = condition.getValues();
+            for (int i = 0; i < values.size(); i++) {
+                ps.setObject(i + 1, values.get(i));
             }
         }
         return ps.executeUpdate();
