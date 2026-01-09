@@ -53,7 +53,7 @@ public class SelectOperation {
             sql.append(" LIMIT ").append(limit);
         }
 
-        System.out.println("DEBUG SQL: " + sql.toString());
+      //  System.out.println("DEBUG SQL: " + sql.toString());
 
         // execute
         Connection con = DbHelper.getConnection();

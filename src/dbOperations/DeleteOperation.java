@@ -15,7 +15,7 @@ public class DeleteOperation {
             sql = "DELETE FROM " + tableName + " WHERE " + condition.toSQL();
         }
 
-        System.out.println("DEBUG DELETE SQL: " + sql);
+   //     System.out.println("DEBUG DELETE SQL: " + sql);
 
         // Execute
         Connection con = DbHelper.getConnection();

@@ -113,11 +113,18 @@ public class InputHandler {
         }
     }
 
-    public static boolean getYesNo(String s) {
-        char c = s.charAt(0);
-        if(c == 'y' || c == 'Y'){
-            return true;
+    public static boolean getYesNo(String prompt) {
+        while(true){
+            System.out.println(prompt);
+            try {
+                char input = scanner.next().charAt(0);
+                if(input == 'y' || input == 'Y'){
+                    return true;
+                }
+                return false;
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
-        return false;
     }
 }

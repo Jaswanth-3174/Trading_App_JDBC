@@ -77,6 +77,13 @@ public class TradingAccountDAO {
         return acc != null ? acc.getBalance() : 0.0;
     }
 
+    public boolean deleteTradingAccount(int userId) throws SQLException {
+        Condition c = new Condition();
+        c.add("user_id", userId);
+        int affected = DeleteOperation.delete(tableName, c);
+        return affected > 0;
+    }
+
     private TradingAccount mapToTradingAccount(HashMap<String, Object> row) {
         TradingAccount account = new TradingAccount();
         account.setTradingAccountId(((Number) row.get("trading_id")).intValue());

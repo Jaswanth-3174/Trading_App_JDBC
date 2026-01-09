@@ -39,6 +39,13 @@ public class OrderDAO {
         return orderId > 0 ? findById(orderId) : null;
     }
 
+    // when user account deleting
+    public int cancelAllOrdersByUserId(int userId) throws SQLException {
+        Condition c = new Condition();
+        c.add("user_id", userId);
+        return DeleteOperation.delete(tableName, c);
+    }
+
     public Order mapToOrder(HashMap<String, Object> row) throws SQLException {
         Order order = new Order();
         order.setOrderId(((Number) row.get("order_id")).intValue());
@@ -133,7 +140,6 @@ public class OrderDAO {
         return null;
     }
 
-    // Helper: Execute cursor-based query
     private List<Order> executeWithCursor(String sql, Object... params) throws SQLException {
         List<Order> orders = new ArrayList<>();
         try (Connection con = DatabaseConfig.getConnection();

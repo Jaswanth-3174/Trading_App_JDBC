@@ -1,8 +1,9 @@
 package dao;
 
+import com.mysql.cj.exceptions.DataReadException;
 import dbOperations.*;
 import trading.User;
-
+import dbConnection.DatabaseConfig;
 import java.sql.SQLException;
 import java.util.*;
 
@@ -60,12 +61,28 @@ public class UserDAO {
     }
 
     public boolean deleteUser(int userId) throws SQLException {
-        Condition set = new Condition();
-        set.add("isActive", false);
-        Condition where = new Condition();
-        where.add("user_id", userId);
-        int affected = UpdateOperation.update(tableName, set, where);
-        return affected > 0;
+        DatabaseConfig.beginTransaction();
+        try {
+            // Cancel pending orders
+            OrderDAO orderDAO = new OrderDAO();
+            orderDAO.cancelAllOrdersByUserId(userId);
+
+            // delete trading account
+            TradingAccountDAO tradingAccountDAO = new TradingAccountDAO();
+            tradingAccountDAO.deleteTradingAccount(userId);
+
+            Condition set = new Condition();
+            set.add("isActive", false);
+            set.addNull("demat_id");
+            Condition where = new Condition();
+            where.add("user_id", userId);
+            int affected = UpdateOperation.update(tableName, set, where);
+            DatabaseConfig.commit();
+            return affected > 0;
+        } catch (SQLException e) {
+            DatabaseConfig.rollback();
+            throw e;
+        }
     }
 
     public List<User> listAllActiveUsers() throws SQLException {

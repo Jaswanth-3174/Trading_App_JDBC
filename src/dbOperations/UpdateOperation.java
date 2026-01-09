@@ -10,9 +10,9 @@ public class UpdateOperation {
             return 0;
         }
 
-        String tableName = table.split(" ")[0];
-        String setSQL = setData.toSQL().replace(" AND ", ", ");
-
+       String tableName = table.split(" ")[0];
+//        String setSQL = setData.toSQL().replace(" AND ", ", ");
+        String setSQL = setData.toSetSQL();
         String sql;
         if (whereCondition == null || whereCondition.isEmpty()) {
             sql = "UPDATE " + tableName + " SET " + setSQL;

@@ -71,7 +71,8 @@ public class Main {
             currentUser = marketPlace.getUserDAO().findById(userId);
             System.out.println("\nWelcome, " + currentUser.getUserName() + "!");
         } else {
-            System.out.println("\nInvalid credentials!");
+            System.out.println("\nInvalid Login id or password!");
+            showLoginMenu();
         }
     }
 
@@ -156,6 +157,7 @@ public class Main {
         System.out.println("+ 10. Add Balance                                           +");
         System.out.println("+ 11. View Portfolio                                        +");
         System.out.println("+ 12. View Available Stocks                                 +");
+        System.out.println("+ 13. Delete My account                                     +");
         System.out.println("+  0. Logout                                                +");
         System.out.println("+-----------------------------------------------------------+");
 
@@ -173,6 +175,7 @@ public class Main {
             case 10 -> addBalance();
             case 11 -> marketPlace.showPortfolio(currentUser.getUserId());
             case 12 -> showAvailableStocks();
+            case 13 -> deleteAccount(currentUser.getUserId());
             case 0 -> logout();
         }
     }
@@ -244,6 +247,18 @@ public class Main {
         }
 
         System.out.println("+---------------------------------------+");
+    }
+
+    private static void deleteAccount(int userId) throws SQLException {
+        if (InputHandler.getYesNo("Sure you want to delete account? Trading account will also also deleted Y to confirm")) {
+            UserDAO userDAO= marketPlace.getUserDAO();
+            if(userDAO.deleteUser(userId)){
+                System.out.println("UserId : "+ userId + ", account deleted!");
+                System.out.println("Demat account holdings are preserved!");
+                showLoginMenu();
+            }
+        }
+        System.out.println("User account not deleted!");
     }
 
     private static void logout() {

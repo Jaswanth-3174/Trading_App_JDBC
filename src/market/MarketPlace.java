@@ -28,7 +28,7 @@ public class MarketPlace {
         this.dematAccountDAO = new DematAccountDAO();
     }
 
-    public Order placeBuyOrder(int userId, String stockName, int quantity, double price) throws SQLException, SQLException {
+    public Order placeBuyOrder(int userId, String stockName, int quantity, double price) throws SQLException {
         Stock stock = stockDAO.findByName(stockName);
         if (stock == null) {
             System.out.println("Stock not found: " + stockName);
@@ -37,19 +37,31 @@ public class MarketPlace {
 
         double total = quantity * price;
 
-        if (!tradingAccountDAO.reserveBalance(userId, total)) {
-     //       TradingAccount ta = tradingAccountDAO.findByUserId(userId);
-     //       double available = ta != null ? ta.getAvailableBalance() : 0;
-            System.out.println("Insufficient balance!"); // Need Rs." + total + ", Available: Rs." + available);
-            return null;
+        try {
+            DatabaseConfig.beginTransaction();
+
+            if (!tradingAccountDAO.reserveBalance(userId, total)) {
+                DatabaseConfig.rollback();
+                System.out.println("Insufficient balance!");
+                return null;
+            }
+            Order order = orderDAO.createOrder(userId, stockName, quantity, price, true);
+            if (order == null) {
+                DatabaseConfig.rollback();
+                System.out.println("Failed to create order!");
+                return null;
+            }
+            DatabaseConfig.commit();
+            System.out.println("BUY order placed: #" + order.getOrderId());
+
+            autoMatch(stock.getStockId());
+
+            return orderDAO.findById(order.getOrderId());
+
+        } catch (SQLException e) {
+            DatabaseConfig.rollback();
+            throw e;
         }
-
-        Order order = orderDAO.createOrder(userId, stockName, quantity, price, true);
-        System.out.println("BUY order placed: #" + order.getOrderId());
-
-        autoMatch(stock.getStockId());
-
-        return orderDAO.findById(order.getOrderId());
     }
 
     public Order placeSellOrder(int userId, String stockName, int quantity, double price) throws SQLException {
@@ -68,17 +80,30 @@ public class MarketPlace {
         StockHolding holding = stockHoldingDAO.findByDematAndStock(user.getDematId(), stock.getStockId());
         int available = holding != null ? holding.getAvailableQuantity() : 0;
 
-        if (!stockHoldingDAO.reserveStocks(user.getDematId(), stock.getStockId(), quantity)) {
-            System.out.println("Insufficient stocks! Available: " + available);
-            return null;
+        try {
+            DatabaseConfig.beginTransaction();
+            if (!stockHoldingDAO.reserveStocks(user.getDematId(), stock.getStockId(), quantity)) {
+                DatabaseConfig.rollback();
+                System.out.println("Insufficient stocks! Available: " + available);
+                return null;
+            }
+            Order order = orderDAO.createOrder(userId, stockName, quantity, price, false);
+            if (order == null) {
+                DatabaseConfig.rollback();
+                System.out.println("Failed to create order!");
+                return null;
+            }
+            DatabaseConfig.commit();
+            System.out.println("SELL order placed: #" + order.getOrderId());
+
+            autoMatch(stock.getStockId());
+
+            return orderDAO.findById(order.getOrderId());
+
+        } catch (SQLException e) {
+            DatabaseConfig.rollback();
+            throw e;
         }
-
-        Order order = orderDAO.createOrder(userId, stockName, quantity, price, false);
-        System.out.println("SELL order placed: #" + order.getOrderId());
-
-        autoMatch(stock.getStockId());
-
-        return orderDAO.findById(order.getOrderId());
     }
 
     private void autoMatch(int stockId) throws SQLException {
@@ -116,6 +141,21 @@ public class MarketPlace {
                     }
                 }
 
+                if (sell == null && !sellOrders.isEmpty()) {
+                    Order lastSell = sellOrders.get(sellOrders.size() - 1);
+                    if (lastSell.getPrice() <= bestBuy.getPrice()) {
+                        List<Order> nextSellBatch = orderDAO.getNextSellOrders(stockId, lastSell.getPrice(), lastSell.getOrderId());
+                        for (Order s : nextSellBatch) {
+                            if (s.getPrice() > bestBuy.getPrice()) break;
+                            if (s.getUserId() != bestBuy.getUserId() && s.getQuantity() > 0) {
+                                sell = s;
+                                buy = bestBuy;
+                                break;
+                            }
+                        }
+                    }
+                }
+
                 if (sell == null) {
                     sell = orderDAO.findMatchingOrder(stockId, false, bestBuy.getUserId(), bestBuy.getPrice());
                     if (sell != null) {
@@ -123,7 +163,7 @@ public class MarketPlace {
                     }
                 }
 
-                // alternate buy if still no match
+                // no match -> Try alternate buy
                 if (sell == null) {
                     for (Order b : buyOrders) {
                         if (b.getPrice() < bestSell.getPrice()) break;
@@ -131,6 +171,22 @@ public class MarketPlace {
                             buy = b;
                             sell = bestSell;
                             break;
+                        }
+                    }
+
+                    // searching in next batches
+                    if (buy == null && !buyOrders.isEmpty()) {
+                        Order lastBuy = buyOrders.get(buyOrders.size() - 1);
+                        if (lastBuy.getPrice() >= bestSell.getPrice()) {
+                            List<Order> nextBuyBatch = orderDAO.getNextBuyOrders(stockId, lastBuy.getPrice(), lastBuy.getOrderId());
+                            for (Order b : nextBuyBatch) {
+                                if (b.getPrice() < bestSell.getPrice()) break;
+                                if (b.getUserId() != bestSell.getUserId() && b.getQuantity() > 0) {
+                                    buy = b;
+                                    sell = bestSell;
+                                    break;
+                                }
+                            }
                         }
                     }
 
@@ -160,7 +216,7 @@ public class MarketPlace {
 
             boolean tradeDone = executeTrade(buy, sell);
 
-            // 🚫 Trade failed, stop infinite loop
+            // 🚫 Trade failed, this will stop the infinite loop
             if (!tradeDone) {
                 break;
             }
