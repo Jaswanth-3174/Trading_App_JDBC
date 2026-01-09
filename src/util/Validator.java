@@ -8,9 +8,9 @@ public class Validator {
             return false;
         }
         for(char c : userName.toCharArray()){
-            if( (c>='a' && c<='z') || (c>='A' && c<='Z')){
+            if( (c>='a' && c<='z') || (c>='A' && c<='Z') || (c>='0' && c<='9') ){
             }else{
-                System.out.println("User name can contain only alphabets");
+                System.out.println("User name can contain only alphabets and numbers");
                 return false;
             }
         }

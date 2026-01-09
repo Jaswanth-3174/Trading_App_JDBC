@@ -65,14 +65,15 @@ public class Main {
 
     private static void login() throws SQLException {
         System.out.println("\n--- LOGIN ---");
-        int userId = InputHandler.getInteger("Enter User ID: ");
+        String username = InputHandler.getString("Enter Username: ");
         String password = InputHandler.getString("Enter Password: ");
-        if (marketPlace.getUserDAO().authenticateUser(userId, password)) {
-            currentUser = marketPlace.getUserDAO().findById(userId);
+
+        User user = marketPlace.getUserDAO().authenticateUser(username, password);
+        if (user != null) {
+            currentUser = user;
             System.out.println("\nWelcome, " + currentUser.getUserName() + "!");
         } else {
-            System.out.println("\nInvalid Login id or password!");
-            showLoginMenu();
+            System.out.println("\nInvalid username or password!");
         }
     }
 
@@ -109,11 +110,18 @@ public class Main {
             System.out.println("Demat account created!");
         }
 
-        // User Account
-        String username = InputHandler.getString("Enter Username: ");
-        if (!Validator.validateUserName(username)) {
-            System.out.println("Invalid username!"); // min 3 chars
-            return;
+        String username;
+        while (true) {
+            username = InputHandler.getString("Enter Username: ");
+            if (!Validator.validateUserName(username)) {
+                System.out.println("Invalid username!");
+                continue;
+            }
+            if (marketPlace.getUserDAO().isUsernameTaken(username)) {
+                System.out.println("Username already taken! Please choose another.");
+                continue;
+            }
+            break;
         }
 
         String userPassword = InputHandler.getString("Create User Password: ");
@@ -123,6 +131,12 @@ public class Main {
         }
 
         User user = marketPlace.getUserDAO().createUser(username, userPassword, demat.getDematAccountId(), false);
+        if (user == null) {
+            System.out.println("Failed to create user!");
+            return;
+        }
+
+
         double initialBalance = 1000 + Math.random() * 4000;
         marketPlace.getTradingAccountDAO().createTradingAccount(user.getUserId(), initialBalance);
         System.out.println("\n+---------------------------------------+");
@@ -251,6 +265,7 @@ public class Main {
 
     private static void deleteAccount(int userId) throws SQLException {
         if (InputHandler.getYesNo("Sure you want to delete account? Trading account will also also deleted Y to confirm")) {
+
             UserDAO userDAO= marketPlace.getUserDAO();
             if(userDAO.deleteUser(userId)){
                 System.out.println("UserId : "+ userId + ", account deleted!");

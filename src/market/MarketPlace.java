@@ -45,16 +45,19 @@ public class MarketPlace {
                 System.out.println("Insufficient balance!");
                 return null;
             }
+
             Order order = orderDAO.createOrder(userId, stockName, quantity, price, true);
             if (order == null) {
                 DatabaseConfig.rollback();
                 System.out.println("Failed to create order!");
                 return null;
             }
+
             DatabaseConfig.commit();
             System.out.println("BUY order placed: #" + order.getOrderId());
 
-            autoMatch(stock.getStockId());
+            // Auto-match: Find sell orders that match this buy order
+            autoMatchBuy(order);
 
             return orderDAO.findById(order.getOrderId());
 
@@ -82,27 +85,99 @@ public class MarketPlace {
 
         try {
             DatabaseConfig.beginTransaction();
+
             if (!stockHoldingDAO.reserveStocks(user.getDematId(), stock.getStockId(), quantity)) {
                 DatabaseConfig.rollback();
                 System.out.println("Insufficient stocks! Available: " + available);
                 return null;
             }
+
             Order order = orderDAO.createOrder(userId, stockName, quantity, price, false);
             if (order == null) {
                 DatabaseConfig.rollback();
                 System.out.println("Failed to create order!");
                 return null;
             }
+
             DatabaseConfig.commit();
             System.out.println("SELL order placed: #" + order.getOrderId());
 
-            autoMatch(stock.getStockId());
+            // Auto-match: Find buy orders that match this sell order
+            autoMatchSell(order);
 
             return orderDAO.findById(order.getOrderId());
 
         } catch (SQLException e) {
             DatabaseConfig.rollback();
             throw e;
+        }
+    }
+
+    /**
+     * Auto-match for BUY orders
+     * Finds sell orders with price <= buyOrder.price (sorted by price ASC - lowest first)
+     * Excludes same user to prevent self-trading
+     */
+    private void autoMatchBuy(Order buyOrder) throws SQLException {
+        if (buyOrder == null) return;
+
+        int stockId = buyOrder.getStockId();
+        int buyUserId = buyOrder.getUserId();
+        double maxPrice = buyOrder.getPrice();
+
+        while (true) {
+            // Refresh buy order to get current quantity
+            buyOrder = orderDAO.findById(buyOrder.getOrderId());
+            if (buyOrder == null || buyOrder.getQuantity() <= 0) {
+                break; // Buy order fully matched or cancelled
+            }
+
+            // Find best matching sell order (lowest price, excluding same user)
+            Order sellOrder = orderDAO.findMatchingOrder(stockId, false, buyUserId, maxPrice);
+
+            if (sellOrder == null) {
+                break; // No matching sell orders
+            }
+
+            // Execute trade
+            boolean tradeDone = executeTrade(buyOrder, sellOrder);
+            if (!tradeDone) {
+                break;
+            }
+        }
+    }
+
+    /**
+     * Auto-match for SELL orders
+     * Finds buy orders with price >= sellOrder.price (sorted by price DESC - highest first)
+     * Excludes same user to prevent self-trading
+     */
+    private void autoMatchSell(Order sellOrder) throws SQLException {
+        if (sellOrder == null) return;
+
+        int stockId = sellOrder.getStockId();
+        int sellUserId = sellOrder.getUserId();
+        double minPrice = sellOrder.getPrice();
+
+        while (true) {
+            // Refresh sell order to get current quantity
+            sellOrder = orderDAO.findById(sellOrder.getOrderId());
+            if (sellOrder == null || sellOrder.getQuantity() <= 0) {
+                break; // Sell order fully matched or cancelled
+            }
+
+            // Find best matching buy order (highest price, excluding same user)
+            Order buyOrder = orderDAO.findMatchingOrder(stockId, true, sellUserId, minPrice);
+
+            if (buyOrder == null) {
+                break; // No matching buy orders
+            }
+
+            // Execute trade
+            boolean tradeDone = executeTrade(buyOrder, sellOrder);
+            if (!tradeDone) {
+                break;
+            }
         }
     }
 
@@ -391,7 +466,6 @@ public class MarketPlace {
 
             // Updating order
             orderDAO.modifyOrder(orderId, newQuantity, newPrice);
-
             DatabaseConfig.commit();
             System.out.println("Order #" + orderId + " modified successfully!");
             autoMatch(order.getStockId());

@@ -1,6 +1,5 @@
 package dao;
 
-import com.mysql.cj.exceptions.DataReadException;
 import dbOperations.*;
 import trading.User;
 import dbConnection.DatabaseConfig;
@@ -34,6 +33,9 @@ public class UserDAO {
     }
 
     public User createUser(String userName, String password, int dematId, boolean isPromoter) throws SQLException {
+        if (isUsernameTaken(userName)) {
+            return null;
+        }
         Condition data = new Condition();
         data.add("username", userName);
         data.add("password", password);
@@ -43,13 +45,21 @@ public class UserDAO {
         return userId > 0 ? findById(userId) : null;
     }
 
-    public boolean authenticateUser(int userId, String password) throws SQLException {
+    public boolean isUsernameTaken(String username) throws SQLException {
         Condition c = new Condition();
-        c.add("user_id", userId);
-        c.add("password", password);
+        c.add("username", username);
         c.add("isActive", true);
         ArrayList<HashMap<String, Object>> rows = SelectOperation.select(tableName, new String[]{"user_id"}, c);
         return !rows.isEmpty();
+    }
+
+    public User authenticateUser(String username, String password) throws SQLException {
+        Condition c = new Condition();
+        c.add("username", username);
+        c.add("password", password);
+        c.add("isActive", true);
+        ArrayList<HashMap<String, Object>> rows = SelectOperation.select(tableName, c);
+        return !rows.isEmpty() ? mapToUser(rows.get(0)) : null;
     }
 
     public boolean isActiveUserLinkedWithDematId(int dematId) throws SQLException {
