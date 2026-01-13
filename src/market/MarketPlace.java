@@ -39,7 +39,6 @@ public class MarketPlace {
 
         try {
             DatabaseConfig.beginTransaction();
-
             if (!tradingAccountDAO.reserveBalance(userId, total)) {
                 DatabaseConfig.rollback();
                 System.out.println("Insufficient balance!");
@@ -56,7 +55,6 @@ public class MarketPlace {
             DatabaseConfig.commit();
             System.out.println("BUY order placed: #" + order.getOrderId());
 
-            // Auto-match: Find sell orders that match this buy order
             autoMatchBuy(order);
 
             return orderDAO.findById(order.getOrderId());
@@ -102,7 +100,6 @@ public class MarketPlace {
             DatabaseConfig.commit();
             System.out.println("SELL order placed: #" + order.getOrderId());
 
-            // Auto-match: Find buy orders that match this sell order
             autoMatchSell(order);
 
             return orderDAO.findById(order.getOrderId());
@@ -113,242 +110,184 @@ public class MarketPlace {
         }
     }
 
-    /**
-     * Auto-match for BUY orders
-     * Finds sell orders with price <= buyOrder.price (sorted by price ASC - lowest first)
-     * Excludes same user to prevent self-trading
-     */
-    private void autoMatchBuy(Order buyOrder) throws SQLException {
-        if (buyOrder == null) return;
+    void autoMatchBuy(Order buyOrder) throws SQLException {
 
         int stockId = buyOrder.getStockId();
-        int buyUserId = buyOrder.getUserId();
-        double maxPrice = buyOrder.getPrice();
+        double buyPrice = buyOrder.getPrice();
+
+        double lastPrice = Double.MAX_VALUE;
+        int lastOrderId = 0;
 
         while (true) {
-            // Refresh buy order to get current quantity
-            buyOrder = orderDAO.findById(buyOrder.getOrderId());
-            if (buyOrder == null || buyOrder.getQuantity() <= 0) {
-                break; // Buy order fully matched or cancelled
-            }
+            List<Order> sells = (lastOrderId == 0)
+                    ? orderDAO.getSellOrders(stockId)
+                    : orderDAO.getNextSellOrders(stockId, lastPrice, lastOrderId);
 
-            // Find best matching sell order (lowest price, excluding same user)
-            Order sellOrder = orderDAO.findMatchingOrder(stockId, false, buyUserId, maxPrice);
+            if (sells.isEmpty()) break;
 
-            if (sellOrder == null) {
-                break; // No matching sell orders
-            }
+            for (Order sell : sells) {
+                if (sell.getPrice() > buyPrice) { // price can never match
+                    return;
+                }
+                if (sell.getUserId() == buyOrder.getUserId()) continue;
+                if (sell.getQuantity() <= 0) continue;
 
-            // Execute trade
-            boolean tradeDone = executeTrade(buyOrder, sellOrder);
-            if (!tradeDone) {
-                break;
+                // execute trade
+                boolean done = executeTrade(buyOrder, sell);
+                if (!done) return;
+                buyOrder = orderDAO.findById(buyOrder.getOrderId());
+                if (buyOrder == null || buyOrder.getQuantity() <= 0) return;
             }
+            // 5Move cursor
+            Order last = sells.get(sells.size() - 1);
+            lastPrice = last.getPrice();
+            lastOrderId = last.getOrderId();
         }
     }
 
-    /**
-     * Auto-match for SELL orders
-     * Finds buy orders with price >= sellOrder.price (sorted by price DESC - highest first)
-     * Excludes same user to prevent self-trading
-     */
-    private void autoMatchSell(Order sellOrder) throws SQLException {
-        if (sellOrder == null) return;
-
+    void autoMatchSell(Order sellOrder) throws SQLException {
         int stockId = sellOrder.getStockId();
-        int sellUserId = sellOrder.getUserId();
-        double minPrice = sellOrder.getPrice();
-
+        double sellPrice = sellOrder.getPrice();
+        double lastPrice = 0;
+        int lastOrderId = 0;
         while (true) {
-            // Refresh sell order to get current quantity
-            sellOrder = orderDAO.findById(sellOrder.getOrderId());
-            if (sellOrder == null || sellOrder.getQuantity() <= 0) {
-                break; // Sell order fully matched or cancelled
-            }
+            List<Order> buys = (lastOrderId == 0)
+                    ? orderDAO.getBuyOrders(stockId)
+                    : orderDAO.getNextBuyOrders(stockId, lastPrice, lastOrderId);
 
-            // Find best matching buy order (highest price, excluding same user)
-            Order buyOrder = orderDAO.findMatchingOrder(stockId, true, sellUserId, minPrice);
+            if (buys.isEmpty()) break;
+            for (Order buy : buys) {
+                if (buy.getPrice() < sellPrice) {
+                    return;
+                }
+                if (buy.getUserId() == sellOrder.getUserId()) continue;
+                if (buy.getQuantity() <= 0) continue;
+                boolean done = executeTrade(buy, sellOrder);
+                if (!done) return;
 
-            if (buyOrder == null) {
-                break; // No matching buy orders
+                sellOrder = orderDAO.findById(sellOrder.getOrderId());
+                if (sellOrder == null || sellOrder.getQuantity() <= 0) return;
             }
-
-            // Execute trade
-            boolean tradeDone = executeTrade(buyOrder, sellOrder);
-            if (!tradeDone) {
-                break;
-            }
+            Order last = buys.get(buys.size() - 1);
+            lastPrice = last.getPrice();
+            lastOrderId = last.getOrderId();
         }
     }
-
-    private void autoMatch(int stockId) throws SQLException {
-        while (true) {
-
-            List<Order> buyOrders = orderDAO.getBuyOrders(stockId);
-            List<Order> sellOrders = orderDAO.getSellOrders(stockId);
-
-            // 🚫 No possible match
-            if (buyOrders.isEmpty() || sellOrders.isEmpty()) {
-                break;
-            }
-
-            Order bestBuy = buyOrders.get(0);   // highest price
-            Order bestSell = sellOrders.get(0); // lowest price
-
-            // 🚫 Price mismatch
-            if (bestBuy.getPrice() < bestSell.getPrice()) {
-                break;
-            }
-
-            Order buy = null;
-            Order sell = null;
-
-            if (bestBuy.getUserId() != bestSell.getUserId()) {
-                buy = bestBuy;
-                sell = bestSell;
-            } else { // alternate sell
-                for (Order s : sellOrders) {
-                    if (s.getPrice() > bestBuy.getPrice()) break;
-                    if (s.getUserId() != bestBuy.getUserId() && s.getQuantity() > 0) {
-                        sell = s;
-                        buy = bestBuy;
-                        break;
-                    }
-                }
-
-                if (sell == null && !sellOrders.isEmpty()) {
-                    Order lastSell = sellOrders.get(sellOrders.size() - 1);
-                    if (lastSell.getPrice() <= bestBuy.getPrice()) {
-                        List<Order> nextSellBatch = orderDAO.getNextSellOrders(stockId, lastSell.getPrice(), lastSell.getOrderId());
-                        for (Order s : nextSellBatch) {
-                            if (s.getPrice() > bestBuy.getPrice()) break;
-                            if (s.getUserId() != bestBuy.getUserId() && s.getQuantity() > 0) {
-                                sell = s;
-                                buy = bestBuy;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if (sell == null) {
-                    sell = orderDAO.findMatchingOrder(stockId, false, bestBuy.getUserId(), bestBuy.getPrice());
-                    if (sell != null) {
-                        buy = bestBuy;
-                    }
-                }
-
-                // no match -> Try alternate buy
-                if (sell == null) {
-                    for (Order b : buyOrders) {
-                        if (b.getPrice() < bestSell.getPrice()) break;
-                        if (b.getUserId() != bestSell.getUserId() && b.getQuantity() > 0) {
-                            buy = b;
-                            sell = bestSell;
-                            break;
-                        }
-                    }
-
-                    // searching in next batches
-                    if (buy == null && !buyOrders.isEmpty()) {
-                        Order lastBuy = buyOrders.get(buyOrders.size() - 1);
-                        if (lastBuy.getPrice() >= bestSell.getPrice()) {
-                            List<Order> nextBuyBatch = orderDAO.getNextBuyOrders(stockId, lastBuy.getPrice(), lastBuy.getOrderId());
-                            for (Order b : nextBuyBatch) {
-                                if (b.getPrice() < bestSell.getPrice()) break;
-                                if (b.getUserId() != bestSell.getUserId() && b.getQuantity() > 0) {
-                                    buy = b;
-                                    sell = bestSell;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    if (buy == null) {
-                        buy = orderDAO.findMatchingOrder(stockId, true, bestSell.getUserId(), bestSell.getPrice());
-                        if (buy != null) {
-                            sell = bestSell;
-                        }
-                    }
-                }
-            }
-
-            // 🚫 No match
-            if (buy == null || sell == null) {
-                break;
-            }
-
-            if (buy.getQuantity() <= 0 || sell.getQuantity() <= 0) {
-                if (buy.getQuantity() <= 0) {
-                    orderDAO.cancelOrder(buy.getOrderId());
-                }
-                if (sell.getQuantity() <= 0) {
-                    orderDAO.cancelOrder(sell.getOrderId());
-                }
-                continue;
-            }
-
-            boolean tradeDone = executeTrade(buy, sell);
-
-            // 🚫 Trade failed, this will stop the infinite loop
-            if (!tradeDone) {
-                break;
-            }
-        }
-    }
-
 
 //    private void autoMatch(int stockId) throws SQLException {
 //        while (true) {
-//            String stockName = StockDAO.getStockNameById(stockId);
-//            List<Order> buyOrders = orderDAO.getBuyOrders(stockName);
-//            List<Order> sellOrders = orderDAO.getSellOrders(stockName);
 //
+//            List<Order> buyOrders = orderDAO.getBuyOrders(stockId);
+//            List<Order> sellOrders = orderDAO.getSellOrders(stockId);
+//
+//            // 🚫 No possible match
 //            if (buyOrders.isEmpty() || sellOrders.isEmpty()) {
 //                break;
 //            }
 //
-//            Order bestBuy = buyOrders.get(0);   // sorted desc
-//            Order bestSell = sellOrders.get(0); // sorted asc
+//            Order bestBuy = buyOrders.get(0);   // highest price
+//            Order bestSell = sellOrders.get(0); // lowest price
 //
-//            if (bestBuy.getPrice() < bestSell.getPrice()) { // no match
+//            // 🚫 Price mismatch
+//            if (bestBuy.getPrice() < bestSell.getPrice()) {
 //                break;
 //            }
 //
 //            Order buy = null;
 //            Order sell = null;
 //
-//            if (bestBuy.getUserId() != bestSell.getUserId()) { // match found, different user
+//            if (bestBuy.getUserId() != bestSell.getUserId()) {
 //                buy = bestBuy;
 //                sell = bestSell;
-//            } else {
-//                for (Order s : sellOrders) { // match found, but same user
+//            } else { // alternate sell
+//                for (Order s : sellOrders) {
 //                    if (s.getPrice() > bestBuy.getPrice()) break;
-//                    if (s.getUserId() != bestBuy.getUserId()) {
+//                    if (s.getUserId() != bestBuy.getUserId() && s.getQuantity() > 0) {
 //                        sell = s;
 //                        buy = bestBuy;
 //                        break;
 //                    }
 //                }
 //
+//                if (sell == null && !sellOrders.isEmpty()) {
+//                    Order lastSell = sellOrders.get(sellOrders.size() - 1);
+//                    if (lastSell.getPrice() <= bestBuy.getPrice()) {
+//                        List<Order> nextSellBatch = orderDAO.getNextSellOrders(stockId, lastSell.getPrice(), lastSell.getOrderId());
+//                        for (Order s : nextSellBatch) {
+//                            if (s.getPrice() > bestBuy.getPrice()) break;
+//                            if (s.getUserId() != bestBuy.getUserId() && s.getQuantity() > 0) {
+//                                sell = s;
+//                                buy = bestBuy;
+//                                break;
+//                            }
+//                        }
+//                    }
+//                }
+//
+//                if (sell == null) {
+//                    sell = orderDAO.findMatchingOrder(stockId, false, bestBuy.getUserId(), bestBuy.getPrice());
+//                    if (sell != null) {
+//                        buy = bestBuy;
+//                    }
+//                }
+//
+//                // no match -> Try alternate buy
 //                if (sell == null) {
 //                    for (Order b : buyOrders) {
 //                        if (b.getPrice() < bestSell.getPrice()) break;
-//                        if (b.getUserId() != bestSell.getUserId()) {
+//                        if (b.getUserId() != bestSell.getUserId() && b.getQuantity() > 0) {
 //                            buy = b;
 //                            sell = bestSell;
 //                            break;
 //                        }
 //                    }
+//
+//                    // searching in next batches
+//                    if (buy == null && !buyOrders.isEmpty()) {
+//                        Order lastBuy = buyOrders.get(buyOrders.size() - 1);
+//                        if (lastBuy.getPrice() >= bestSell.getPrice()) {
+//                            List<Order> nextBuyBatch = orderDAO.getNextBuyOrders(stockId, lastBuy.getPrice(), lastBuy.getOrderId());
+//                            for (Order b : nextBuyBatch) {
+//                                if (b.getPrice() < bestSell.getPrice()) break;
+//                                if (b.getUserId() != bestSell.getUserId() && b.getQuantity() > 0) {
+//                                    buy = b;
+//                                    sell = bestSell;
+//                                    break;
+//                                }
+//                            }
+//                        }
+//                    }
+//
+//                    if (buy == null) {
+//                        buy = orderDAO.findMatchingOrder(stockId, true, bestSell.getUserId(), bestSell.getPrice());
+//                        if (buy != null) {
+//                            sell = bestSell;
+//                        }
+//                    }
 //                }
 //            }
 //
+//            // 🚫 No match
 //            if (buy == null || sell == null) {
 //                break;
 //            }
 //
-//            executeTrade(buy, sell); // to database
+//            if (buy.getQuantity() <= 0 || sell.getQuantity() <= 0) {
+//                if (buy.getQuantity() <= 0) {
+//                    orderDAO.cancelOrder(buy.getOrderId());
+//                }
+//                if (sell.getQuantity() <= 0) {
+//                    orderDAO.cancelOrder(sell.getOrderId());
+//                }
+//                continue;
+//            }
+//
+//            boolean tradeDone = executeTrade(buy, sell);
+//
+//            // 🚫 Trade failed, this will stop the infinite loop
+//            if (!tradeDone) {
+//                break;
+//            }
 //        }
 //    }
 
@@ -389,7 +328,7 @@ public class MarketPlace {
 
             DatabaseConfig.commit();
 
-            printTradeDetails(buy.getStockName(), quantity, tradePrice, total, buyer, seller);
+            printTradeDetails(buy.getOrderId(), quantity, tradePrice, total, buyer, seller);
             return true;
 
         } catch (SQLException e) {
@@ -398,83 +337,85 @@ public class MarketPlace {
         }
     }
 
-    private void printTradeDetails(String stockName, int qty, double price, double total, User buyer, User seller) {
+    private void printTradeDetails(int stockId, int qty, double price, double total, User buyer, User seller) {
         System.out.println("\n+---------------------------------------+");
         System.out.println("+           ORDER MATCHED               +");
         System.out.println("+---------------------------------------+");
-        System.out.printf("+ Stock      : %-25s +%n", stockName);
-        System.out.printf("+ Quantity   : %-25d +%n", qty);
-        System.out.printf("+ Price      : Rs.%-22.2f +%n", price);
-        System.out.printf("+ Total      : Rs.%-22.2f +%n", total);
-        System.out.printf("+ Buyer      : %d (%s)+%n", buyer.getUserId(), buyer.getUserName());
-        System.out.printf("+ Seller     : %d (%s)+%n", seller.getUserId(), seller.getUserName());
+        System.out.printf("+ Stock      : %-24d +%n", stockId);
+        System.out.printf("+ Quantity   : %-24d +%n", qty);
+        System.out.printf("+ Price      : Rs.%-22.2f+%n", price);
+        System.out.printf("+ Total      : Rs.%-22.2f+%n", total);
+        System.out.printf("+ Buyer      : %d (%s)%-10d+%n", buyer.getUserId(), buyer.getUserName());
+        System.out.printf("+ Seller     : %d (%s)%-10d+%n", seller.getUserId(), seller.getUserName());
         System.out.println("+---------------------------------------+\n");
     }
 
-    public boolean modifyOrder(int userId, int orderId, int newQuantity, double newPrice) throws SQLException {
+    public boolean modifyOrder(int userId, int orderId, int newQuantity, double newPrice)
+            throws SQLException {
+
         try {
             DatabaseConfig.beginTransaction();
 
             Order order = orderDAO.findById(orderId);
-            if (order == null) {
-                System.out.println("Order not found!");
+            if (order == null || order.getUserId() != userId) {
                 DatabaseConfig.rollback();
                 return false;
             }
-
-            if (order.getUserId() != userId) {
-                System.out.println("This is not your order!");
-                DatabaseConfig.rollback();
-                return false;
-            }
-
-//            if (!order.getStatus().equals("OPEN") && !order.getStatus().equals("PARTIAL")) {
-//                System.out.println("Cannot modify " + order.getStatus() + " order!");
-//                DatabaseConfig.rollback();
-//                return false;
-//            }
 
             User user = userDAO.findById(userId);
 
             if (order.isBuy()) {
-                // Releasing old reserved balance
                 double oldReserved = order.getQuantity() * order.getPrice();
                 tradingAccountDAO.releaseReservedBalance(userId, oldReserved);
 
-                // Reserving new balance
                 double newReserved = newQuantity * newPrice;
                 if (!tradingAccountDAO.reserveBalance(userId, newReserved)) {
-                    // Restoring to old reservation
                     tradingAccountDAO.reserveBalance(userId, oldReserved);
-                    System.out.println("Insufficient balance for modification!");
                     DatabaseConfig.rollback();
                     return false;
                 }
             } else {
-                // Releasing old reserved stocks
-                stockHoldingDAO.releaseReservedStocks(user.getDematId(), order.getStockId(), order.getQuantity());
+                stockHoldingDAO.releaseReservedStocks(
+                        user.getDematId(), order.getStockId(), order.getQuantity()
+                );
 
-                // Reserving new stocks
-                if (!stockHoldingDAO.reserveStocks(user.getDematId(), order.getStockId(), newQuantity)) {
-                    // Restoring to old reservation
-                    stockHoldingDAO.reserveStocks(user.getDematId(), order.getStockId(), order.getQuantity());
-                    System.out.println("Insufficient stocks for modification!");
+                if (!stockHoldingDAO.reserveStocks(
+                        user.getDematId(), order.getStockId(), newQuantity
+                )) {
+                    stockHoldingDAO.reserveStocks(
+                            user.getDematId(), order.getStockId(), order.getQuantity()
+                    );
                     DatabaseConfig.rollback();
                     return false;
                 }
             }
 
-            // Updating order
             orderDAO.modifyOrder(orderId, newQuantity, newPrice);
+
             DatabaseConfig.commit();
-            System.out.println("Order #" + orderId + " modified successfully!");
-            autoMatch(order.getStockId());
-            return true;
+
         } catch (SQLException e) {
             DatabaseConfig.rollback();
             throw e;
         }
+
+        // 🔥 CRITICAL FIX: re-fetch updated order
+        Order updatedOrder = orderDAO.findById(orderId);
+        if (updatedOrder == null || updatedOrder.getQuantity() <= 0) {
+            return true;
+        }
+
+        // 🔥 side-specific matching
+        if (updatedOrder.isBuy()) {
+            autoMatchBuy(updatedOrder);
+        } else {
+            autoMatchSell(updatedOrder);
+        }
+
+        return true;
     }
+
+
 
     public boolean cancelOrder(int userId, int orderId) throws SQLException {
         try {
@@ -678,25 +619,25 @@ public class MarketPlace {
 
         List<StockHolding> holdings = stockHoldingDAO.findByDematId(user.getDematId());
 
-        System.out.println("\n+-----------------------------------------------------------+");
-        System.out.println("+                    STOCK PORTFOLIO                        +");
-        System.out.println("+-----------------------------------------------------------+");
+        System.out.println("\n+---------------------------------------------------+");
+        System.out.println("+                STOCK PORTFOLIO                    +");
+        System.out.println("+---------------------------------------------------+");
 
         if (holdings.isEmpty()) {
-            System.out.println("+   No stock holdings                                       +");
+            System.out.println("+   No stock holdings                               +");
         } else {
             System.out.printf("+ %-10s %-12s %-12s %-12s +%n",
-                    "Stock", "Total", "Reserved", "Available");
-            System.out.println("+-----------------------------------------------------------+");
+                    "Stock ID", "Total", "Reserved", "Available");
+            System.out.println("+---------------------------------------------------+");
             for (StockHolding h : holdings) {
-                System.out.printf("║ %-10s %-12d %-12d %-12d ║%n",
-                        StockDAO.getStockNameById(h.getStockId()),
+                System.out.printf("+ %-10s %-12d %-12d %-12d +%n",
+                        h.getStockId(),
                         h.getTotalQuantity(),
                         h.getReservedQuantity(),
                         h.getAvailableQuantity());
             }
         }
-        System.out.println("+-----------------------------------------------------------+");
+        System.out.println("+---------------------------------------------------+");
     }
 
     public boolean addBalance(int userId, double amount) throws SQLException {

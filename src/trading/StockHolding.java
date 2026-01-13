@@ -10,6 +10,7 @@ public class StockHolding {
     private int stockId;
     private int totalQuantity;
     private int reservedQuantity;
+    private String stockName;
 
     public StockHolding(){
 
@@ -51,4 +52,7 @@ public class StockHolding {
         return totalQuantity - reservedQuantity;
     }
 
+    public String getStockName() throws SQLException {
+        return StockDAO.getStockNameById(this.stockId);
+    }
 }

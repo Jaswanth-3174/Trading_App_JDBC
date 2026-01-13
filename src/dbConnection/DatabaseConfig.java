@@ -4,8 +4,8 @@ import java.sql.*;
 
 public class DatabaseConfig {
         static String url = "jdbc:mysql://localhost:3306/trading_app";
-        static String username = "jaswanth";
-        static String password = "root";
+        static String username = "root_user1";
+        static String password = "Root@123";
         static String query = "select * from users";
         static Connection con = null;
 
