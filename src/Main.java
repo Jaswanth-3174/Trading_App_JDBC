@@ -18,7 +18,7 @@ public class Main {
             // Initialize
             DatabaseConfig.getConnection();
             marketPlace = new MarketPlace();
-
+          //  IndexUsageCheck.check();
             System.out.println("\n+-----------------------------------------------------------+");
             System.out.println("+         WELCOME TO TRADING CONSOLE APPLICATION            +");
             System.out.println("+-----------------------------------------------------------+");
